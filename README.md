@@ -201,6 +201,12 @@ session, or a general request to continue is not approval. The coordinator then:
    traceability, successful current verification, and an `APPROVED` current
    review all agree.
 
+Reviewer JSON is validated as a strict contract. Requirement entries must be
+unique and complete, checkpoint entries must be unique and well-formed, evidence
+and findings must be non-empty, `APPROVED` requires all requirements and
+checkpoints to pass, and `CHANGES_REQUESTED` requires at least one actionable
+finding.
+
 Checking task boxes does not invalidate approval. Changing requirement text,
 design, or task text does. A blocked feature preserves its prior state, timestamp,
 and reason; `resume` requires explicit human direction.
@@ -268,9 +274,12 @@ approval normalization, Git baselines, verification/review freshness, completion
 optional exact-path commits, hook contracts, Codex configuration parsing, and a
 complete integration acceptance flow.
 
-Windows execution is tested directly. The suite tests both Windows and POSIX
-command-selection branches, but native POSIX operation should not be claimed until
-the suite is also run on a POSIX host or CI runner.
+The suite has been exercised directly on Windows and Ubuntu under WSL. The
+checked-in CI matrix repeats it on native `windows-latest` and `ubuntu-latest`
+runners with Python 3.11 and 3.13. When an installed Codex CLI is available, an
+additional smoke test copies the template configuration into an isolated Codex
+home, parses it with `--strict-config`, and uses an unknown-field negative control
+to prove strict parsing is active without starting a model turn.
 
 ## Design and documentation
 

@@ -370,6 +370,25 @@ In a temporary Git repository copied from `template/`:
 14. Validate both Windows and POSIX command-selection branches in unit tests; do not claim native POSIX execution until it is exercised on a POSIX host or CI runner.
 15. Parse the template through the installed Codex client in strict-config mode without starting an API-backed application or requiring an API key.
 
+### Implementation closeout
+
+Completed on 2026-08-27:
+
+- The canonical suite passes on Windows and Ubuntu under WSL; the latter exercises
+  native POSIX command execution rather than only mocking the platform selector.
+- `.github/workflows/tests.yml` continuously exercises `windows-latest` and
+  `ubuntu-latest` with Python 3.11 and 3.13.
+- The installed-Codex smoke test parses an isolated copy of the template
+  configuration with `--strict-config`. A deliberately unknown field is rejected,
+  proving the test reaches strict configuration parsing without starting a model
+  turn or requiring an API key.
+- The state tests now cover every state-changing transition command against every
+  valid and invalid source state, including block/resume restoration from all
+  three resumable states.
+- Reviewer verdict validation rejects duplicate requirement/checkpoint entries,
+  empty evidence or findings, failed checkpoints under `APPROVED`, and
+  `CHANGES_REQUESTED` without an actionable finding.
+
 ## Assumptions and Boundaries
 
 - `harness-sdd-reference` is read-only reference material and will not be edited.
