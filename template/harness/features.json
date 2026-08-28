@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "project": "REPLACE_ME",
+  "features": [
+    {
+      "id": 1,
+      "name": "example_feature",
+      "title": "Example feature",
+      "description": "Replace or remove this example.",
+      "acceptance": [],
+      "sdd": true,
+      "status": "pending",
+      "approval": null,
+      "block": null,
+      "review_cycles": 0
+    }
+  ]
+}

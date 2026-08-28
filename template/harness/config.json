@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "REPLACE_ME"
+  },
+  "workflow": {
+    "max_review_cycles": 3,
+    "require_clean_worktree": true
+  },
+  "commands": {
+    "bootstrap": [],
+    "verify": []
+  },
+  "git": {
+    "auto_commit_on_done": false,
+    "commit_message": "feat({feature_name}): {feature_title}"
+  }
+}

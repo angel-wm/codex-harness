@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 harness/scripts/codex_hook.py",
+            "commandWindows": "py -3 harness/scripts/codex_hook.py",
+            "timeout": 30,
+            "statusMessage": "Validating harness state"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 harness/scripts/codex_hook.py",
+            "commandWindows": "py -3 harness/scripts/codex_hook.py",
+            "timeout": 900,
+            "statusMessage": "Checking final SDD gates"
+          }
+        ]
+      }
+    ]
+  }
+}
