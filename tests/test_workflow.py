@@ -1,6 +1,7 @@
 """Git-backed state transition, freshness, review, and completion tests."""
 from __future__ import annotations
 
+import copy
 import json
 import os
 import tempfile
@@ -20,6 +21,26 @@ from tests.support import write_json
 
 class TestTransitions(unittest.TestCase):
     """Verify every supported transition and important invalid edge."""
+
+    def prepare_state(self, project: TemporaryProject, state: str) -> None:
+        """Put the fixture into one structurally valid source state."""
+        if state == "pending":
+            return
+        if state == "spec_ready":
+            valid_spec(project.root)
+            harnessctl.transition_spec_ready(project.root, "example_feature")
+            return
+        if state in {"in_progress", "done"}:
+            approve_fixture(project)
+            if state == "done":
+                features = read_json(project.root / "harness" / "features.json")
+                features["features"][0]["status"] = "done"
+                write_json(project.root / "harness" / "features.json", features)
+            return
+        if state == "blocked":
+            harnessctl.block_feature(project.root, "example_feature", "fixture blocker")
+            return
+        self.fail(f"Unknown test state: {state}")
 
     def test_pending_cannot_approve_directly(self) -> None:
         with TemporaryProject() as project:
@@ -55,31 +76,45 @@ class TestTransitions(unittest.TestCase):
             self.assertEqual(len(result["approval"]["digest"]), 64)
             self.assertEqual(result["approval"]["baseline"], git(project.root, "rev-parse", "HEAD").stdout.strip())
 
-    def test_done_is_immutable_through_normal_transitions(self) -> None:
-        with TemporaryProject() as project:
-            features = read_json(project.root / "harness" / "features.json")
-            feature = features["features"][0]
-            feature["sdd"] = False
-            feature["status"] = "done"
-            write_json(project.root / "harness" / "features.json", features)
-            for operation in (
-                lambda: harnessctl.transition_spec_ready(project.root, "example_feature"),
-                lambda: harnessctl.approve_feature(project.root, "example_feature"),
-                lambda: harnessctl.block_feature(project.root, "example_feature", "x"),
-                lambda: harnessctl.resume_feature(project.root, "example_feature"),
-            ):
-                with self.assertRaises(harnessctl.HarnessError):
-                    operation()
+    def test_every_command_rejects_invalid_source_states(self) -> None:
+        valid_sources = {
+            "spec-ready": {"pending"},
+            "approve": {"spec_ready"},
+            "complete": {"in_progress"},
+            "block": {"pending", "spec_ready", "in_progress"},
+            "resume": {"blocked"},
+            "record-review": {"in_progress"},
+        }
+        for state in ("pending", "spec_ready", "in_progress", "done", "blocked"):
+            with self.subTest(state=state), TemporaryProject() as project:
+                self.prepare_state(project, state)
+                operations = {
+                    "spec-ready": lambda: harnessctl.transition_spec_ready(project.root, "example_feature"),
+                    "approve": lambda: harnessctl.approve_feature(project.root, "example_feature"),
+                    "complete": lambda: harnessctl.complete_feature(project.root, "example_feature"),
+                    "block": lambda: harnessctl.block_feature(project.root, "example_feature", "fixture blocker"),
+                    "resume": lambda: harnessctl.resume_feature(project.root, "example_feature"),
+                    "record-review": lambda: harnessctl.record_review(
+                        project.root, "example_feature", project.root / "missing-review.json"
+                    ),
+                }
+                for command, operation in operations.items():
+                    if state in valid_sources[command]:
+                        continue
+                    with self.subTest(state=state, command=command):
+                        with self.assertRaises(harnessctl.HarnessError):
+                            operation()
 
-    def test_block_and_resume_restore_prior_state(self) -> None:
-        with TemporaryProject() as project:
-            approve_fixture(project)
-            blocked = harnessctl.block_feature(project.root, "example_feature", "dependency unavailable")
-            self.assertEqual(blocked["block"]["prior_status"], "in_progress")
-            self.assertEqual(blocked["status"], "blocked")
-            resumed = harnessctl.resume_feature(project.root, "example_feature")
-            self.assertEqual(resumed["status"], "in_progress")
-            self.assertIsNone(resumed["block"])
+    def test_block_and_resume_restore_every_valid_prior_state(self) -> None:
+        for prior_state in ("pending", "spec_ready", "in_progress"):
+            with self.subTest(prior_state=prior_state), TemporaryProject() as project:
+                self.prepare_state(project, prior_state)
+                blocked = harnessctl.block_feature(project.root, "example_feature", "dependency unavailable")
+                self.assertEqual(blocked["block"]["prior_status"], prior_state)
+                self.assertEqual(blocked["status"], "blocked")
+                resumed = harnessctl.resume_feature(project.root, "example_feature")
+                self.assertEqual(resumed["status"], prior_state)
+                self.assertIsNone(resumed["block"])
 
 
 class TestVerificationAndReview(unittest.TestCase):
@@ -122,6 +157,54 @@ class TestVerificationAndReview(unittest.TestCase):
             feature = read_json(project.root / "harness" / "features.json")["features"][0]
             self.assertEqual(feature["status"], "in_progress")
             self.assertEqual(feature["review_cycles"], 1)
+
+    def test_review_schema_rejects_contradictory_or_incomplete_payloads(self) -> None:
+        with TemporaryProject() as project:
+            approve_fixture(project)
+            fingerprint = implement_fixture(project)
+            base = reviewer_payload(fingerprint)
+            cases = {
+                "duplicate requirement": (
+                    lambda payload: payload["requirements"].append(copy.deepcopy(payload["requirements"][0])),
+                    "duplicate entry R1",
+                ),
+                "empty evidence": (
+                    lambda payload: payload["requirements"][0].__setitem__("evidence", " "),
+                    "non-empty evidence",
+                ),
+                "missing checkpoints": (
+                    lambda payload: payload.__setitem__("checkpoints", []),
+                    "non-empty array",
+                ),
+                "malformed checkpoint": (
+                    lambda payload: payload.__setitem__("checkpoints", [{"name": "scope"}]),
+                    "passed boolean",
+                ),
+                "duplicate checkpoint": (
+                    lambda payload: payload["checkpoints"].append({"name": "scope", "passed": True}),
+                    "duplicate entry",
+                ),
+                "failed approved checkpoint": (
+                    lambda payload: payload["checkpoints"][0].__setitem__("passed", False),
+                    "all checkpoints passed",
+                ),
+                "empty finding path": (
+                    lambda payload: payload.__setitem__(
+                        "findings", [{"path": " ", "remediation": "Make the required change."}]
+                    ),
+                    "non-empty path/remediation",
+                ),
+                "change request without finding": (
+                    lambda payload: payload.__setitem__("verdict", "CHANGES_REQUESTED"),
+                    "at least one actionable finding",
+                ),
+            }
+            for name, (mutate, expected) in cases.items():
+                with self.subTest(case=name):
+                    payload = copy.deepcopy(base)
+                    mutate(payload)
+                    with self.assertRaisesRegex(harnessctl.HarnessError, expected):
+                        harnessctl.record_review(project.root, "example_feature", self.write_review(project, payload))
 
     def test_review_cycle_limit_blocks_feature(self) -> None:
         with TemporaryProject() as project:

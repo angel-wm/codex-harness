@@ -734,28 +734,56 @@ def read_review(path: Path, feature: dict[str, Any], expected_fingerprint: str, 
             if not isinstance(entry, dict) or entry.get("id") not in requirement_ids:
                 errors.append("requirements contains an invalid id")
                 continue
-            seen.add(entry["id"])
-            if not isinstance(entry.get("covered"), bool) or not isinstance(entry.get("evidence"), str):
-                errors.append(f"requirements entry {entry['id']} needs covered boolean and evidence string")
+            identifier = entry["id"]
+            if identifier in seen:
+                errors.append(f"requirements contains duplicate entry {identifier}")
+            seen.add(identifier)
+            covered = entry.get("covered")
+            evidence = entry.get("evidence")
+            if not isinstance(covered, bool) or not isinstance(evidence, str) or not evidence.strip():
+                errors.append(f"requirements entry {identifier} needs covered boolean and non-empty evidence string")
         if seen != requirement_ids:
             errors.append("requirements coverage must include every requirement exactly once")
     if not isinstance(review.get("tasks_complete"), bool):
         errors.append("tasks_complete must be a boolean")
-    if not isinstance(review.get("checkpoints"), list):
-        errors.append("checkpoints must be an array")
+    checkpoints = review.get("checkpoints")
+    if not isinstance(checkpoints, list) or not checkpoints:
+        errors.append("checkpoints must be a non-empty array")
+    else:
+        checkpoint_names: set[str] = set()
+        for checkpoint in checkpoints:
+            if not isinstance(checkpoint, dict):
+                errors.append("checkpoints entries must be objects")
+                continue
+            name = checkpoint.get("name")
+            passed = checkpoint.get("passed")
+            if not isinstance(name, str) or not name.strip() or not isinstance(passed, bool):
+                errors.append("checkpoints entries need a non-empty name and passed boolean")
+                continue
+            if name in checkpoint_names:
+                errors.append(f"checkpoints contains duplicate entry {name!r}")
+            checkpoint_names.add(name)
     findings = review.get("findings")
     if not isinstance(findings, list) or not all(
         isinstance(item, dict)
         and isinstance(item.get("path"), str)
+        and bool(item["path"].strip())
         and isinstance(item.get("remediation"), str)
+        and bool(item["remediation"].strip())
         for item in findings
     ):
-        errors.append("findings must be an array of path/remediation objects")
+        errors.append("findings must be an array of non-empty path/remediation objects")
     if review.get("verdict") == "APPROVED":
         if review.get("tasks_complete") is not True or findings:
             errors.append("APPROVED requires tasks_complete true and no findings")
         if isinstance(coverage, list) and any(entry.get("covered") is not True for entry in coverage if isinstance(entry, dict)):
             errors.append("APPROVED requires all requirements covered")
+        if isinstance(checkpoints, list) and any(
+            checkpoint.get("passed") is not True for checkpoint in checkpoints if isinstance(checkpoint, dict)
+        ):
+            errors.append("APPROVED requires all checkpoints passed")
+    if review.get("verdict") == "CHANGES_REQUESTED" and isinstance(findings, list) and not findings:
+        errors.append("CHANGES_REQUESTED requires at least one actionable finding")
     if errors:
         raise HarnessError("Invalid review JSON:\n- " + "\n- ".join(errors))
     review["recorded_at"] = utc_now()

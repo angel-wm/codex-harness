@@ -14,6 +14,7 @@ from pathlib import Path
 
 from tests.support import REPOSITORY_ROOT
 from tests.support import TEMPLATE_ROOT
+from tests.support import LocalTemporaryDirectory
 from tests.support import TemporaryProject
 from tests.support import approve_fixture
 from tests.support import implement_fixture
@@ -73,18 +74,61 @@ class TestStaticTemplate(unittest.TestCase):
         ]
         self.assertEqual(matches, [TEMPLATE_ROOT / "harness" / "scripts" / "harnessctl.py"])
 
+    def test_ci_matrix_runs_windows_and_native_posix(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+        self.assertIn("ubuntu-latest", workflow)
+        self.assertIn("windows-latest", workflow)
+        self.assertIn('"3.11"', workflow)
+        self.assertIn("python -m unittest discover -s tests -v", workflow)
+
     @unittest.skipUnless(shutil.which("codex"), "installed Codex client is required")
-    def test_installed_codex_exposes_strict_config_entrypoint(self) -> None:
-        result = subprocess.run(
-            ["codex", "exec", "--help"],
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-            shell=False,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("--strict-config", result.stdout)
+    def test_installed_codex_strictly_parses_template_config(self) -> None:
+        temporary = LocalTemporaryDirectory()
+        try:
+            codex_home = Path(temporary.name) / "codex-home"
+            shutil.copytree(TEMPLATE_ROOT / ".codex", codex_home)
+            environment = os.environ.copy()
+            environment["CODEX_HOME"] = str(codex_home)
+            executable = shutil.which("codex")
+            self.assertIsNotNone(executable)
+
+            def run_strict_config() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [
+                        executable,
+                        "exec",
+                        "--strict-config",
+                        "--disable",
+                        "plugins",
+                        "--ephemeral",
+                        "resume",
+                        "00000000-0000-0000-0000-000000000000",
+                        "configuration smoke test",
+                    ],
+                    cwd=TEMPLATE_ROOT,
+                    env=environment,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    shell=False,
+                    check=False,
+                )
+
+            valid = run_strict_config()
+            self.assertNotEqual(valid.returncode, 0)
+            valid_output = (valid.stdout + valid.stderr).lower()
+            self.assertNotIn("unknown_harness_test_key", valid_output)
+            self.assertRegex(valid_output, r"thread|session|rollout|not found")
+
+            config_path = codex_home / "config.toml"
+            original_config = config_path.read_text(encoding="utf-8")
+            config_path.write_text("unknown_harness_test_key = true\n" + original_config, encoding="utf-8")
+            invalid_config = run_strict_config()
+            self.assertNotEqual(invalid_config.returncode, 0)
+            self.assertIn("unknown_harness_test_key", (invalid_config.stdout + invalid_config.stderr).lower())
+        finally:
+            temporary.cleanup()
 
 
 class TestHookContracts(unittest.TestCase):

@@ -31,12 +31,12 @@ class LocalTemporaryDirectory:
 
     def cleanup(self) -> None:
         """Remove the exact isolated test directory."""
-        def make_writable(function: Any, path: str, error: BaseException) -> None:
-            del error
+        def make_writable(function: Any, path: str, error_info: object) -> None:
+            del error_info
             os.chmod(path, stat.S_IWRITE)
             function(path)
 
-        shutil.rmtree(self.path, onexc=make_writable)
+        shutil.rmtree(self.path, onerror=make_writable)
 
 
 def load_harnessctl() -> ModuleType:
