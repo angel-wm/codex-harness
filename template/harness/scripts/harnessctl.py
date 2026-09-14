@@ -22,12 +22,14 @@ try:
     from harness_core.repository import discover_root
     from harness_core.repository import git_is_clean
     from harness_core.repository import implementation_fingerprint
+    from harness_core.repository import is_volatile
     from harness_core.repository import json_load
     from harness_core.repository import json_write
     from harness_core.repository import normalized_relative
     from harness_core.repository import paths
     from harness_core.repository import run_git
     from harness_core.repository import utc_now
+    from harness_core.repository import VOLATILE_PATHS
     from harness_core.specs import approval_is_current
     from harness_core.specs import canonical_spec_digest
     from harness_core.specs import parse_requirements

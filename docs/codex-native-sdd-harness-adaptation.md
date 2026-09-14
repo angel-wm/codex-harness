@@ -66,12 +66,19 @@ codex-harness/
 │       │   └── reviews/
 │       └── scripts/
 │           ├── harnessctl.py
-│           └── codex_hook.py
+│           ├── codex_hook.py
+│           └── harness_core/
+│               ├── repository.py
+│               ├── specs.py
+│               ├── state.py
+│               ├── runner.py
+│               ├── inspection.py
+│               └── workflow.py
 └── tests/
     └── fixtures/
 ```
 
-The root `AGENTS.md` governs development of `codex-harness` itself. The template’s `AGENTS.md` is the file copied into target projects. Template tests will import or invoke the canonical scripts directly from `template/`; there will be no duplicate generated copy of the control-plane implementation.
+The root `AGENTS.md` governs development of `codex-harness` itself. The template’s `AGENTS.md` is the file copied into target projects. Template tests import or invoke the canonical `harnessctl.py` facade directly from `template/`; its internal package separates repository access, specification parsing, state validation, command execution, inspection, and workflow gates. Internal dependencies point toward those lower-level responsibilities and never back to the facade. There is no duplicate generated copy of the control-plane implementation.
 
 ### Codex configuration
 

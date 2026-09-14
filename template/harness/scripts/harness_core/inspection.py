@@ -31,6 +31,13 @@ REQUIRED_TEMPLATE_PATHS = (
     "harness/progress/history.md",
     "harness/scripts/harnessctl.py",
     "harness/scripts/codex_hook.py",
+    "harness/scripts/harness_core/__init__.py",
+    "harness/scripts/harness_core/repository.py",
+    "harness/scripts/harness_core/specs.py",
+    "harness/scripts/harness_core/state.py",
+    "harness/scripts/harness_core/runner.py",
+    "harness/scripts/harness_core/inspection.py",
+    "harness/scripts/harness_core/workflow.py",
 )
 
 

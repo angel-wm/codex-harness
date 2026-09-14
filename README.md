@@ -40,7 +40,10 @@ harness/
 ├── docs/                     # target architecture, conventions, SDD, verification
 ├── specs/<feature>/          # requirements.md, design.md, tasks.md
 ├── progress/                 # current state, history, reports, reviews, evidence
-└── scripts/                  # dependency-free control plane and hook adapter
+└── scripts/
+    ├── harnessctl.py         # stable CLI and import facade
+    ├── codex_hook.py         # hook adapter
+    └── harness_core/         # dependency-free control-plane responsibilities
 ```
 
 ## Prerequisites

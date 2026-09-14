@@ -14,10 +14,13 @@
 - Extracted platform argv selection, command fingerprints, sequential subprocess execution, timeouts, fail-fast handling, and verification evidence into `harness_core/runner.py`.
 - Extracted structural inspection, prerequisite checks, status payloads, and human-readable status output into `harness_core/inspection.py`.
 - Extracted all state transitions, approval, reviewer validation/recording, completion gates, exact-path auto-commit, blocking, and resumption into `harness_core/workflow.py`.
+- Reduced `harnessctl.py` to the stable import facade, CLI parser, and command dispatch while retaining every original function and constant on the facade.
+- Added all internal modules to the distributable inventory checked by `doctor`.
+- Updated the README and adaptation architecture tree, and added a static dependency-direction/distribution test.
 
 ## Pending
 
-1. Reduce the facade to stable reexports plus CLI parsing/dispatch, update template inventory, and perform final validation.
+1. Perform final static and runtime validation, remove this progress file, and create the closeout commit.
 
 ## Decisions
 
@@ -48,7 +51,12 @@
 - `python -B -m unittest tests.test_integration_acceptance -v` — 1 passed after inspection/workflow extraction.
 - `python -B -m unittest discover -s tests -v` — 67 passed in 55.069 seconds after inspection/workflow extraction, including all 21 workflow tests.
 - Repeated static AST comparison after inspection/workflow extraction — no missing or changed original definitions.
+- `python -B -m unittest tests.test_hooks_and_template -v` — 16 passed after facade/distribution closeout.
+- `python -B -m unittest tests.test_config_and_commands -v` — 13 passed after facade/distribution closeout.
+- `python -B -m unittest tests.test_specs_and_state -v` — 17 passed after facade/distribution closeout.
+- `python -B -m unittest tests.test_integration_acceptance -v` — 1 passed after facade/distribution closeout.
+- `python -m unittest discover -s tests -v` — 68 passed in 55.703 seconds using the exact repository-required command.
 
 ## Last stable checkpoint
 
-- `013a1fd` (`refactor: separate state and command execution`). Inspection/workflow extraction passes locally; checkpoint commit pending.
+- `5f74b03` (`refactor: isolate inspection and workflow gates`). Facade/distribution closeout passes locally; checkpoint commit pending.

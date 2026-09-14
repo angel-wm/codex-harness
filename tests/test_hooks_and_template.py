@@ -1,6 +1,7 @@
 """Hook wire-contract and distributable template tests."""
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -79,22 +80,81 @@ class TestStaticTemplate(unittest.TestCase):
     def test_canonical_facade_exports_existing_python_surface(self) -> None:
         expected = {
             "HarnessError",
+            "utc_now",
+            "json_load",
+            "atomic_write",
+            "json_write",
+            "run_git",
             "discover_root",
+            "paths",
+            "normalized_relative",
+            "validate_step",
             "validate_config",
-            "validate_repository",
+            "spec_paths",
+            "parse_requirements",
+            "parse_tasks",
             "validate_spec",
-            "status_payload",
+            "validate_features",
+            "load_state",
+            "find_feature",
+            "canonical_spec_digest",
+            "git_is_clean",
+            "changed_paths",
+            "is_volatile",
+            "implementation_fingerprint",
+            "approval_is_current",
+            "select_argv",
+            "command_fingerprint",
             "run_command_group",
+            "validate_repository",
+            "doctor",
+            "status_payload",
+            "update_current",
             "transition_spec_ready",
             "approve_feature",
+            "read_review",
             "record_review",
+            "traceability_ids",
             "complete_feature",
             "block_feature",
             "resume_feature",
+            "print_status",
             "build_parser",
             "main",
         }
         self.assertEqual({name for name in expected if hasattr(harnessctl, name)}, expected)
+        for constant in (
+            "SCHEMA_VERSION",
+            "VALID_STATES",
+            "BLOCKABLE_STATES",
+            "VOLATILE_PATHS",
+            "REQUIRED_TEMPLATE_PATHS",
+        ):
+            self.assertTrue(hasattr(harnessctl, constant), constant)
+
+    def test_internal_modules_are_distributed_with_acyclic_dependencies(self) -> None:
+        module_root = TEMPLATE_ROOT / "harness" / "scripts" / "harness_core"
+        expected_paths = {
+            f"harness/scripts/harness_core/{name}.py"
+            for name in ("__init__", "repository", "specs", "state", "runner", "inspection", "workflow")
+        }
+        self.assertEqual(
+            {path.relative_to(TEMPLATE_ROOT).as_posix() for path in module_root.glob("*.py")},
+            expected_paths,
+        )
+        self.assertTrue(expected_paths.issubset(set(harnessctl.REQUIRED_TEMPLATE_PATHS)))
+
+        ranks = {"repository": 0, "specs": 0, "state": 1, "runner": 2, "workflow": 2, "inspection": 3}
+        for path in module_root.glob("*.py"):
+            if path.stem == "__init__":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                self.assertNotEqual(node.module, "harnessctl")
+                if node.level == 1 and node.module in ranks:
+                    self.assertLess(ranks[node.module], ranks[path.stem])
 
     def test_ci_matrix_runs_windows_and_native_posix(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
