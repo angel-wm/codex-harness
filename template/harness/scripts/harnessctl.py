@@ -11,20 +11,45 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
+
+
+_INTERNAL_MODULE_PATH = str(Path(__file__).resolve().parent)
+_path_added = _INTERNAL_MODULE_PATH not in sys.path
+_previous_dont_write_bytecode = sys.dont_write_bytecode
+if _path_added:
+    sys.path.insert(0, _INTERNAL_MODULE_PATH)
+sys.dont_write_bytecode = True
+try:
+    from harness_core.repository import HarnessError
+    from harness_core.repository import atomic_write
+    from harness_core.repository import changed_paths
+    from harness_core.repository import discover_root
+    from harness_core.repository import git_is_clean
+    from harness_core.repository import implementation_fingerprint
+    from harness_core.repository import json_load
+    from harness_core.repository import json_write
+    from harness_core.repository import normalized_relative
+    from harness_core.repository import paths
+    from harness_core.repository import run_git
+    from harness_core.repository import utc_now
+    from harness_core.specs import approval_is_current
+    from harness_core.specs import canonical_spec_digest
+    from harness_core.specs import parse_requirements
+    from harness_core.specs import parse_tasks
+    from harness_core.specs import spec_paths
+    from harness_core.specs import traceability_ids
+    from harness_core.specs import validate_spec
+finally:
+    sys.dont_write_bytecode = _previous_dont_write_bytecode
+    if _path_added:
+        sys.path.remove(_INTERNAL_MODULE_PATH)
 
 
 SCHEMA_VERSION = 1
 VALID_STATES = {"pending", "spec_ready", "in_progress", "done", "blocked"}
 BLOCKABLE_STATES = {"pending", "spec_ready", "in_progress"}
-VOLATILE_PATHS = {
-    "harness/features.json",
-    "harness/progress/current.md",
-    "harness/progress/history.md",
-    "harness/progress/verification.json",
-}
 REQUIRED_TEMPLATE_PATHS = (
     "AGENTS.md",
     ".agents/skills/sdd-workflow/SKILL.md",
@@ -45,100 +70,6 @@ REQUIRED_TEMPLATE_PATHS = (
     "harness/scripts/harnessctl.py",
     "harness/scripts/codex_hook.py",
 )
-
-
-class HarnessError(Exception):
-    """A user-correctable harness invariant or command failure."""
-
-
-def utc_now() -> str:
-    """Return an ISO-8601 UTC timestamp without fractional seconds."""
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def json_load(path: Path) -> dict[str, Any]:
-    """Load one JSON object with a useful error on malformed input."""
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise HarnessError(f"Required file is missing: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise HarnessError(f"Invalid JSON in {path}: {exc}") from exc
-    if not isinstance(value, dict):
-        raise HarnessError(f"Expected a JSON object in {path}")
-    return value
-
-
-def atomic_write(path: Path, text: str) -> None:
-    """Replace a UTF-8 text file atomically."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    temporary.write_text(text, encoding="utf-8", newline="\n")
-    os.replace(temporary, path)
-
-
-def json_write(path: Path, value: Any) -> None:
-    """Write stable, human-readable JSON atomically."""
-    atomic_write(path, json.dumps(value, indent=2, ensure_ascii=False) + "\n")
-
-
-def run_git(root: Path, args: Sequence[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    """Run Git without a shell and capture UTF-8 text."""
-    result = subprocess.run(
-        ["git", *args],
-        cwd=root,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        shell=False,
-        check=False,
-    )
-    if check and result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "unknown Git error"
-        raise HarnessError(f"git {' '.join(args)} failed: {detail}")
-    return result
-
-
-def discover_root(start: Path | None = None) -> Path:
-    """Find the enclosing Git root."""
-    location = (start or Path.cwd()).resolve()
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=location,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        shell=False,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise HarnessError("The harness must run inside a Git repository.")
-    return Path(result.stdout.strip()).resolve()
-
-
-def paths(root: Path) -> dict[str, Path]:
-    """Return canonical harness paths for a repository root."""
-    harness = root / "harness"
-    progress = harness / "progress"
-    return {
-        "root": root,
-        "harness": harness,
-        "config": harness / "config.json",
-        "features": harness / "features.json",
-        "specs": harness / "specs",
-        "progress": progress,
-        "current": progress / "current.md",
-        "history": progress / "history.md",
-        "reviews": progress / "reviews",
-        "verification": progress / "verification.json",
-    }
-
-
-def normalized_relative(root: Path, candidate: Path) -> str:
-    """Return a slash-normalized repository-relative path."""
-    return candidate.resolve().relative_to(root.resolve()).as_posix()
 
 
 def validate_step(step: Any, root: Path, label: str) -> list[str]:
@@ -222,114 +153,6 @@ def validate_config(config: dict[str, Any], root: Path) -> list[str]:
         if not isinstance(message, str) or "{feature_name}" not in message or "{feature_title}" not in message:
             errors.append("config.git.commit_message must contain {feature_name} and {feature_title}")
     return errors
-
-
-def spec_paths(root: Path, feature: dict[str, Any]) -> tuple[Path, Path, Path]:
-    """Return requirements, design, and tasks paths for a feature."""
-    base = root / "harness" / "specs" / feature["name"]
-    return base / "requirements.md", base / "design.md", base / "tasks.md"
-
-
-def parse_requirements(text: str) -> tuple[list[dict[str, Any]], list[str]]:
-    """Parse strict English EARS requirements and their acceptance mappings."""
-    errors: list[str] = []
-    matches = list(re.finditer(r"(?m)^## (R(\d+))\s*$", text))
-    if not matches:
-        return [], ["requirements.md must contain headings beginning with ## R1"]
-    requirements: list[dict[str, Any]] = []
-    expected = 1
-    ears = re.compile(
-        r"^(?:The system MUST .+|WHEN .+, the system MUST .+|"
-        r"WHILE .+, the system MUST .+|WHERE .+, the system MUST .+|"
-        r"IF .+ THEN the system MUST .+)$"
-    )
-    for index, match in enumerate(matches):
-        identifier = match.group(1)
-        number = int(match.group(2))
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        body = text[match.end():end].strip()
-        statement_lines: list[str] = []
-        acceptance: list[int] = []
-        for line in body.splitlines():
-            stripped = line.strip()
-            mapping = re.fullmatch(r"Acceptance:\s*(A\d+(?:\s*,\s*A\d+)*)", stripped)
-            if mapping:
-                acceptance.extend(int(item[1:]) for item in re.findall(r"A\d+", mapping.group(1)))
-            elif stripped and not stripped.startswith("<!--"):
-                statement_lines.append(stripped)
-        statement = " ".join(statement_lines)
-        if number != expected:
-            errors.append(f"Requirement IDs must be sequential; expected R{expected}, found {identifier}")
-            expected = number
-        expected += 1
-        if statement.count("MUST") != 1:
-            errors.append(f"{identifier} must contain exactly one uppercase MUST obligation")
-        if re.search(r"\b(?:MAY|SHOULD|COULD)\b", statement):
-            errors.append(f"{identifier} contains a soft obligation")
-        if not ears.fullmatch(statement):
-            errors.append(f"{identifier} does not match a strict English EARS form")
-        requirements.append({"id": identifier, "statement": statement, "acceptance": acceptance})
-    return requirements, errors
-
-
-def parse_tasks(text: str, requirement_ids: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
-    """Parse ordered executable tasks with requirement references."""
-    errors: list[str] = []
-    tasks: list[dict[str, Any]] = []
-    pattern = re.compile(r"(?m)^- \[([ xX])\] T(\d+)\s+.+?(?:Covers|Requirements):\s*([^\n.]+)\.?")
-    for match in pattern.finditer(text):
-        references = re.findall(r"R\d+", match.group(3))
-        tasks.append(
-            {
-                "id": f"T{match.group(2)}",
-                "number": int(match.group(2)),
-                "complete": match.group(1).lower() == "x",
-                "requirements": references,
-            }
-        )
-    if not tasks:
-        return [], ["tasks.md must contain tasks like '- [ ] T1 — ... Covers: R1.'"]
-    for expected, task in enumerate(tasks, start=1):
-        if task["number"] != expected:
-            errors.append(f"Task IDs must be sequential; expected T{expected}, found {task['id']}")
-        if not task["requirements"]:
-            errors.append(f"{task['id']} must reference at least one requirement")
-        unknown = sorted(set(task["requirements"]) - requirement_ids)
-        if unknown:
-            errors.append(f"{task['id']} references unknown requirements: {', '.join(unknown)}")
-    return tasks, errors
-
-
-def validate_spec(root: Path, feature: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    """Validate all three spec files for one feature."""
-    requirements_path, design_path, tasks_path = spec_paths(root, feature)
-    missing = [str(path.relative_to(root)) for path in (requirements_path, design_path, tasks_path) if not path.is_file()]
-    if missing:
-        return {}, [f"Missing spec file: {item}" for item in missing]
-    requirements, errors = parse_requirements(requirements_path.read_text(encoding="utf-8"))
-    acceptance_count = len(feature.get("acceptance", []))
-    if acceptance_count:
-        covered = {number for requirement in requirements for number in requirement["acceptance"]}
-        expected = set(range(1, acceptance_count + 1))
-        missing_acceptance = sorted(expected - covered)
-        unknown_acceptance = sorted(covered - expected)
-        if missing_acceptance:
-            errors.append("Unmapped acceptance criteria: " + ", ".join(f"A{item}" for item in missing_acceptance))
-        if unknown_acceptance:
-            errors.append("Unknown acceptance mappings: " + ", ".join(f"A{item}" for item in unknown_acceptance))
-    design = design_path.read_text(encoding="utf-8").strip()
-    if len(design) < 100:
-        errors.append("design.md must contain substantive design decisions")
-    if "alternative" not in design.lower():
-        errors.append("design.md must document at least one rejected alternative")
-    requirement_ids = {item["id"] for item in requirements}
-    tasks, task_errors = parse_tasks(tasks_path.read_text(encoding="utf-8"), requirement_ids)
-    errors.extend(task_errors)
-    referenced = {identifier for task in tasks for identifier in task["requirements"]}
-    unreferenced = sorted(requirement_ids - referenced, key=lambda item: int(item[1:]))
-    if unreferenced:
-        errors.append("Requirements not referenced by any task: " + ", ".join(unreferenced))
-    return {"requirements": requirements, "tasks": tasks}, errors
 
 
 def validate_features(features_data: dict[str, Any], root: Path) -> list[str]:
@@ -428,60 +251,6 @@ def find_feature(features_data: dict[str, Any], selector: str) -> dict[str, Any]
         if feature["name"] == selector or str(feature["id"]) == selector:
             return feature
     raise HarnessError(f"Unknown feature: {selector}")
-
-
-def canonical_spec_digest(root: Path, feature: dict[str, Any]) -> str:
-    """Hash normalized spec content while ignoring task checkbox state."""
-    digest = hashlib.sha256()
-    for path in spec_paths(root, feature):
-        text = path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
-        if path.name == "tasks.md":
-            text = re.sub(r"(?m)^- \[[xX]\]", "- [ ]", text)
-        digest.update(path.name.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(text.encode("utf-8"))
-        digest.update(b"\0")
-    return digest.hexdigest()
-
-
-def git_is_clean(root: Path) -> bool:
-    """Return whether tracked, staged, and untracked state is clean."""
-    return not run_git(root, ["status", "--porcelain"]).stdout
-
-
-def changed_paths(root: Path, baseline: str) -> list[str]:
-    """Return all tracked changes from baseline plus current untracked files."""
-    tracked = run_git(root, ["diff", "--name-only", "--diff-filter=ACDMRTUXB", baseline, "--"]).stdout.splitlines()
-    untracked = run_git(root, ["ls-files", "--others", "--exclude-standard"]).stdout.splitlines()
-    return sorted({item.replace("\\", "/") for item in [*tracked, *untracked] if item})
-
-
-def is_volatile(path: str) -> bool:
-    """Identify coordinator-owned evidence excluded from implementation identity."""
-    return path in VOLATILE_PATHS or path.startswith("harness/progress/reviews/")
-
-
-def implementation_fingerprint(root: Path, baseline: str) -> str:
-    """Hash repository content changed since approval, excluding volatile evidence."""
-    digest = hashlib.sha256()
-    for relative in changed_paths(root, baseline):
-        if is_volatile(relative):
-            continue
-        digest.update(relative.encode("utf-8"))
-        digest.update(b"\0")
-        path = root / relative
-        if path.is_file():
-            digest.update(path.read_bytes())
-        else:
-            digest.update(b"<deleted>")
-        digest.update(b"\0")
-    return digest.hexdigest()
-
-
-def approval_is_current(root: Path, feature: dict[str, Any]) -> bool:
-    """Return whether the stored approval matches the normalized current spec."""
-    approval = feature.get("approval")
-    return isinstance(approval, dict) and approval.get("digest") == canonical_spec_digest(root, feature)
 
 
 def select_argv(step: dict[str, Any], platform_name: str | None = None) -> list[str]:
@@ -829,13 +598,6 @@ def record_review(root: Path, selector: str, input_path: Path) -> dict[str, Any]
     next_step = "Complete the feature." if review["verdict"] == "APPROVED" else "Address only the recorded findings, then verify and review again."
     update_current(root, feature, next_step)
     return review
-
-
-def traceability_ids(report_path: Path) -> set[str]:
-    """Extract requirements with explicit arrow-based evidence entries."""
-    if not report_path.is_file():
-        return set()
-    return set(re.findall(r"(?m)^- (R\d+)\s*(?:→|->)\s*\S.+$", report_path.read_text(encoding="utf-8")))
 
 
 def complete_feature(root: Path, selector: str) -> dict[str, Any]:
