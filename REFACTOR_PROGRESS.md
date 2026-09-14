@@ -12,11 +12,12 @@
 - Kept every extracted name reexported by the canonical facade with one shared `HarnessError` identity.
 - Extracted configuration and feature-state validation/loading into `harness_core/state.py`.
 - Extracted platform argv selection, command fingerprints, sequential subprocess execution, timeouts, fail-fast handling, and verification evidence into `harness_core/runner.py`.
+- Extracted structural inspection, prerequisite checks, status payloads, and human-readable status output into `harness_core/inspection.py`.
+- Extracted all state transitions, approval, reviewer validation/recording, completion gates, exact-path auto-commit, blocking, and resumption into `harness_core/workflow.py`.
 
 ## Pending
 
-1. Extract inspection and workflow operations.
-2. Reduce the facade to stable reexports plus CLI parsing/dispatch, update template inventory, and perform final validation.
+1. Reduce the facade to stable reexports plus CLI parsing/dispatch, update template inventory, and perform final validation.
 
 ## Decisions
 
@@ -43,7 +44,11 @@
 - `python -B -m unittest tests.test_integration_acceptance -v` — 1 passed after state/runner extraction.
 - `python -B -m unittest discover -s tests -v` — 67 passed in 54.310 seconds after state/runner extraction.
 - Repeated static AST comparison — no missing or changed original definitions.
+- `python -B -m unittest tests.test_hooks_and_template -v` — 15 passed after inspection/workflow extraction.
+- `python -B -m unittest tests.test_integration_acceptance -v` — 1 passed after inspection/workflow extraction.
+- `python -B -m unittest discover -s tests -v` — 67 passed in 55.069 seconds after inspection/workflow extraction, including all 21 workflow tests.
+- Repeated static AST comparison after inspection/workflow extraction — no missing or changed original definitions.
 
 ## Last stable checkpoint
 
-- `b04e70b` (`refactor: extract repository and spec primitives`). State/runner extraction passes locally; checkpoint commit pending.
+- `013a1fd` (`refactor: separate state and command execution`). Inspection/workflow extraction passes locally; checkpoint commit pending.
