@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from tests.support import REPOSITORY_ROOT
+from tests.support import HARNESSCTL_PATH
 from tests.support import TEMPLATE_ROOT
 from tests.support import LocalTemporaryDirectory
 from tests.support import TemporaryProject
@@ -20,6 +21,7 @@ from tests.support import approve_fixture
 from tests.support import implement_fixture
 from tests.support import read_json
 from tests.support import write_json
+from tests.support import harnessctl
 
 
 class TestStaticTemplate(unittest.TestCase):
@@ -73,6 +75,26 @@ class TestStaticTemplate(unittest.TestCase):
             if "__pycache__" not in path.parts and "private" not in path.parts
         ]
         self.assertEqual(matches, [TEMPLATE_ROOT / "harness" / "scripts" / "harnessctl.py"])
+
+    def test_canonical_facade_exports_existing_python_surface(self) -> None:
+        expected = {
+            "HarnessError",
+            "discover_root",
+            "validate_config",
+            "validate_repository",
+            "validate_spec",
+            "status_payload",
+            "run_command_group",
+            "transition_spec_ready",
+            "approve_feature",
+            "record_review",
+            "complete_feature",
+            "block_feature",
+            "resume_feature",
+            "build_parser",
+            "main",
+        }
+        self.assertEqual({name for name in expected if hasattr(harnessctl, name)}, expected)
 
     def test_ci_matrix_runs_windows_and_native_posix(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
@@ -148,12 +170,48 @@ class TestHookContracts(unittest.TestCase):
         )
         return result.returncode, json.loads(result.stdout), result.stderr
 
+    def run_control_plane(
+        self, project: TemporaryProject, *arguments: str, cwd: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        return subprocess.run(
+            [sys.executable, str(project.root / HARNESSCTL_PATH.relative_to(TEMPLATE_ROOT)), *arguments],
+            cwd=cwd or project.root,
+            env=environment,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            shell=False,
+            check=False,
+        )
+
+    def test_cli_runs_from_root_and_subdirectory_without_pythonpath(self) -> None:
+        with TemporaryProject() as project:
+            root_result = self.run_control_plane(project, "validate")
+            nested_result = self.run_control_plane(project, "status", "--json", cwd=project.root / "harness" / "docs")
+            self.assertEqual(root_result.returncode, 0, root_result.stderr)
+            self.assertEqual(json.loads(root_result.stdout), {"valid": True, "feature_count": 1})
+            self.assertEqual(nested_result.returncode, 0, nested_result.stderr)
+            self.assertEqual(json.loads(nested_result.stdout)["project"], "fixture")
+            self.assertFalse(any((project.root / "harness" / "scripts").rglob("__pycache__")))
+
+    def test_cli_preserves_argument_and_domain_error_exit_codes(self) -> None:
+        with TemporaryProject() as project:
+            invalid = self.run_control_plane(project, "unknown-command")
+            domain = self.run_control_plane(project, "run", "bootstrap")
+            self.assertEqual(invalid.returncode, 2)
+            self.assertIn("invalid choice", invalid.stderr)
+            self.assertEqual(domain.returncode, 2)
+            self.assertEqual(domain.stdout, "")
+            self.assertIn("error: No commands are configured for bootstrap", domain.stderr)
+
     def test_post_tool_use_returns_empty_json_when_valid(self) -> None:
         with TemporaryProject() as project:
             code, output, stderr = self.run_hook(project, {"hook_event_name": "PostToolUse"})
             self.assertEqual(code, 0, stderr)
             self.assertEqual(output, {})
-            self.assertFalse((project.root / "harness" / "scripts" / "__pycache__").exists())
+            self.assertFalse(any((project.root / "harness" / "scripts").rglob("__pycache__")))
 
     def test_post_tool_use_blocks_invalid_state(self) -> None:
         with TemporaryProject() as project:
