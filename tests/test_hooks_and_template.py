@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
+import inspect
 import json
 import os
 import re
@@ -155,6 +157,67 @@ class TestStaticTemplate(unittest.TestCase):
                 self.assertNotEqual(node.module, "harnessctl")
                 if node.level == 1 and node.module in ranks:
                     self.assertLess(ranks[node.module], ranks[path.stem])
+
+    def test_facades_from_independent_copies_keep_their_own_internal_modules(self) -> None:
+        temporary = LocalTemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        original_sys_path = sys.path[:]
+        original_bytecode_setting = sys.dont_write_bytecode
+
+        def load_copy(label: str):
+            root = temporary.path / label
+            shutil.copytree(
+                TEMPLATE_ROOT, root, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
+            )
+            script = root / "harness" / "scripts" / "harnessctl.py"
+            spec = importlib.util.spec_from_file_location(f"facade_{label}", script)
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            facade = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(facade)
+            return facade, script.parent / "harness_core"
+
+        first, first_root = load_copy("first")
+        first_modules = {
+            name: module for name, module in sys.modules.copy().items()
+            if getattr(module, "__file__", None)
+            and Path(module.__file__).resolve().is_relative_to(first_root.resolve())
+        }
+        self.assertEqual(len(first_modules), 7)
+        second, second_root = load_copy("second")
+        self.assertIsNot(first.HarnessError, second.HarnessError)
+        self.assertIsNot(first.load_state, second.load_state)
+
+        canonical_exports = {
+            name for name, value in vars(harnessctl).items()
+            if not name.startswith("_")
+            and (inspect.isfunction(value) or inspect.isclass(value))
+            and Path(inspect.getfile(value)).resolve().is_relative_to(HARNESSCTL_PATH.parent.resolve())
+        }
+        for facade, module_root in ((first, first_root), (second, second_root)):
+            internal_modules = {}
+            for name in canonical_exports:
+                value = getattr(facade, name)
+                expected_root = module_root.parent if name in {"build_parser", "main"} else module_root
+                self.assertTrue(Path(inspect.getfile(value)).resolve().is_relative_to(expected_root.resolve()), name)
+                if name not in {"build_parser", "main"}:
+                    module = sys.modules[value.__module__]
+                    self.assertTrue(Path(module.__file__).resolve().is_relative_to(module_root.resolve()), name)
+                    internal_modules[module.__name__] = module
+            self.assertEqual(len(internal_modules), 6)
+            for module in internal_modules.values():
+                if hasattr(module, "HarnessError"):
+                    self.assertIs(module.HarnessError, facade.HarnessError)
+            package = sys.modules[facade.HarnessError.__module__.rsplit(".", 1)[0]]
+            self.assertEqual(Path(package.__file__).resolve(), (module_root / "__init__.py").resolve())
+            with self.assertRaises(facade.HarnessError):
+                facade.load_state(module_root.parent / "missing-project")
+            self.assertFalse(any(module_root.rglob("__pycache__")))
+
+        for name, module in first_modules.items():
+            self.assertIs(sys.modules[name], module)
+        self.assertEqual(sys.path, original_sys_path)
+        self.assertEqual(sys.dont_write_bytecode, original_bytecode_setting)
 
     def test_ci_matrix_runs_windows_and_native_posix(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
