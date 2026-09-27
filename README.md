@@ -2,6 +2,28 @@
 
 Reusable development harness designed for Codex.
 
+## Maintained variants
+
+This branch, `legacy/monolithic`, is the original monolithic line, with the main
+control-plane logic concentrated in `harnessctl.py`. The modular line lives on
+`master`, where `harnessctl.py` is a stable facade and the logic is distributed
+across `harness_core/`.
+
+`v1-monolithic` is the fixed initial snapshot of the monolithic variant, and
+`v2-modular` is the fixed initial snapshot of the reviewed modular variant. The
+branches may continue to evolve independently while these tags remain immutable.
+The presence of `v2-modular` does not make the monolithic variant obsolete or
+make the modular variant the required or recommended choice; both are retained
+intentionally so they can be developed and evaluated separately.
+
+After cloning the repository, select a maintained line or a fixed snapshot with:
+
+```bash
+git switch legacy/monolithic
+git switch master
+git switch --detach v1-monolithic  # or v2-modular
+```
+
 Goals:
 
 - Use Codex through ChatGPT authentication, without requiring the OpenAI API.
