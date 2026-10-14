@@ -1,6 +1,7 @@
 """SDD transitions, reviewer contracts, and completion gates."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -76,9 +77,36 @@ def approve_feature(root: Path, selector: str) -> dict[str, Any]:
     return feature
 
 
-def read_review(path: Path, feature: dict[str, Any], expected_fingerprint: str, requirement_ids: set[str]) -> dict[str, Any]:
+def _checkpoint_names(root: Path) -> set[str]:
+    """Read the single checkpoint catalog, rejecting ambiguous checklist entries."""
+    path = root / "harness" / "checkpoints.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise HarnessError(f"Cannot read harness/checkpoints.md: {exc}") from exc
+    names: set[str] = set()
+    for line in text.splitlines():
+        if not re.match(r"^\s*(?:[-*+]|\d+[.)])\s", line):
+            continue
+        entry = re.fullmatch(r"\s*[-*+] \[[ xX]\] (.+?)\s*", line)
+        if entry is None or not entry[1].strip():
+            raise HarnessError("Malformed checkpoint in harness/checkpoints.md; use '- [ ] Name'")
+        name = entry[1].strip()
+        if name in names:
+            raise HarnessError(f"Duplicate checkpoint in harness/checkpoints.md: {name!r}")
+        names.add(name)
+    if not names:
+        raise HarnessError("harness/checkpoints.md must define at least one checkpoint")
+    return names
+
+
+def read_review(
+    path: Path, feature: dict[str, Any], expected_fingerprint: str,
+    requirement_ids: set[str], root: Path,
+) -> dict[str, Any]:
     """Validate a strict reviewer JSON verdict."""
     review = json_load(path)
+    expected_checkpoints = _checkpoint_names(root)
     errors: list[str] = []
     if review.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"schema_version must equal {SCHEMA_VERSION}")
@@ -125,7 +153,11 @@ def read_review(path: Path, feature: dict[str, Any], expected_fingerprint: str, 
                 continue
             if name in checkpoint_names:
                 errors.append(f"checkpoints contains duplicate entry {name!r}")
+            if name not in expected_checkpoints:
+                errors.append(f"checkpoints contains unknown entry {name!r}")
             checkpoint_names.add(name)
+        if checkpoint_names != expected_checkpoints:
+            errors.append("checkpoints must include every checkpoint exactly once from harness/checkpoints.md")
     findings = review.get("findings")
     if not isinstance(findings, list) or not all(
         isinstance(item, dict)
@@ -165,7 +197,7 @@ def record_review(root: Path, selector: str, input_path: Path) -> dict[str, Any]
     if errors:
         raise HarnessError("Spec validation failed:\n- " + "\n- ".join(errors))
     fingerprint = implementation_fingerprint(root, feature["approval"]["baseline"])
-    review = read_review(input_path, feature, fingerprint, {item["id"] for item in spec["requirements"]})
+    review = read_review(input_path, feature, fingerprint, {item["id"] for item in spec["requirements"]}, root)
     paths(root)["reviews"].mkdir(parents=True, exist_ok=True)
     json_write(paths(root)["reviews"] / f"{feature['name']}.json", review)
     findings_lines = "\n".join(
@@ -228,6 +260,7 @@ def complete_feature(root: Path, selector: str) -> dict[str, Any]:
     review = json_load(review_path)
     if review.get("verdict") != "APPROVED" or review.get("implementation_fingerprint") != fingerprint:
         raise HarnessError("Completion rejected: review is absent, non-approved, or stale")
+    read_review(review_path, feature, fingerprint, requirement_ids, root)
     feature["status"] = "done"
     feature["block"] = None
     completed_at = utc_now()

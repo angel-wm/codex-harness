@@ -179,7 +179,7 @@ def implement_fixture(project: TemporaryProject, *, passing: bool = True) -> str
     return harnessctl.implementation_fingerprint(project.root, baseline)
 
 
-def reviewer_payload(fingerprint: str, verdict: str = "APPROVED") -> dict[str, Any]:
+def reviewer_payload(fingerprint: str, verdict: str = "APPROVED", *, root: Path = TEMPLATE_ROOT) -> dict[str, Any]:
     """Build a valid reviewer result."""
     approved = verdict == "APPROVED"
     return {
@@ -191,6 +191,10 @@ def reviewer_payload(fingerprint: str, verdict: str = "APPROVED") -> dict[str, A
             {"id": "R1", "covered": approved, "evidence": "tests/test_fixture.py" if approved else "missing"}
         ],
         "tasks_complete": approved,
-        "checkpoints": [{"name": "scope", "passed": approved}],
+        "checkpoints": [
+            {"name": line[6:].strip(), "passed": approved}
+            for line in (root / "harness" / "checkpoints.md").read_text(encoding="utf-8").splitlines()
+            if line.startswith(("- [ ] ", "- [x] ", "- [X] "))
+        ],
         "findings": [] if approved else [{"path": "fixture_app.py", "remediation": "Return ready."}],
     }
