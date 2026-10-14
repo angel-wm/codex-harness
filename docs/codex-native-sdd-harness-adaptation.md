@@ -209,7 +209,7 @@ Behavior:
 - `spec-ready` is allowed only from `pending`, after the three spec files pass structural and EARS checks.
 - `approve` is allowed only from `spec_ready` and only when invoked by the coordinator in response to an explicit human approval message. It verifies a clean Git worktree, calculates the approved-spec digest, records the current Git `HEAD` as the implementation baseline, and moves the feature to `in_progress`.
 - Because the spec-author phase creates tracked artifacts, users must commit those reviewed spec/state changes before approval. Unrelated existing work must likewise be committed or stashed.
-- `record-review` validates and stores the reviewer result against the implementation fingerprint.
+- `record-review` validates and stores the reviewer result against the implementation fingerprint. Expected checkpoint names come only from `harness/checkpoints.md`: every checklist item must appear exactly once, with its full text after the checkbox, preserving inline Markdown and punctuation. Missing, duplicate, unknown, or malformed review entries are rejected. The catalog must be readable, non-empty, and contain no duplicate or malformed checklist entries. `APPROVED` requires every checkpoint's `passed` value to be `true`; `complete` revalidates the stored JSON against this catalog before changing state.
 - `complete` requires current approval, all tasks checked, an `APPROVED` review for the current implementation fingerprint, and a successful current verification. It then marks the feature done, appends history, and resets `current.md`.
 - `block` and `resume` preserve the previous state and reason rather than silently discarding progress.
 
@@ -298,7 +298,13 @@ Read-heavy explorers may be used for genuinely complex repository investigation,
 
 Use `.codex/hooks.json` with `command` for POSIX and `commandWindows` for Windows:
 
-- `PostToolUse`, matcher `Edit|Write`:
+Both launch commands use `git rev-parse --show-toplevel` to resolve the adapter
+from the Git root rather than the current directory. The POSIX command quotes
+the resulting script path; Windows passes the resolved path as a subprocess
+argument. Root and nested invocation support paths with spaces. This changes
+script discovery while preserving the `PostToolUse` and `Stop` JSON contracts.
+
+- `PostToolUse`, matcher `apply_patch|Edit|Write`:
   - Run `harnessctl validate`.
   - Perform only fast structural/state checks.
   - If a completed edit leaves invalid state, return blocking feedback to Codex so it repairs or records the issue.
@@ -307,7 +313,8 @@ Use `.codex/hooks.json` with `command` for POSIX and `commandWindows` for Window
 - `Stop`:
   - Read the Codex hook event JSON from stdin.
   - Always perform structural validation.
-  - If an `in_progress` implementation has changed since the last successful verification, run the configured full verification once.
+  - With an active `in_progress` feature, skip the initial full verification only if approval is current, the implementation content digest is empty relative to the approval baseline, and no verification artifact exists. Approval-only coordinator state does not count as implementation content.
+  - Otherwise, run configured full verification unless the latest evidence is successful and matches both the active feature and its current implementation fingerprint. Prior failed evidence still triggers verification, even without implementation changes.
   - If verification fails and `stop_hook_active` is false, return a Codex `decision: block` result so the turn continues with the failure reason.
   - If the continuation fails again with `stop_hook_active` true, stop without an infinite loop, preserve `in_progress`, and surface the failure for the coordinator to record as blocked.
   - If no implementation is active, avoid an unnecessary full test run.
@@ -395,6 +402,18 @@ Completed on 2026-08-27:
 - Reviewer verdict validation rejects duplicate requirement/checkpoint entries,
   empty evidence or findings, failed checkpoints under `APPROVED`, and
   `CHANGES_REQUESTED` without an actionable finding.
+
+### Correction record: 2026-10-14
+
+Original correction commit: `e8c41653c3579b1c105c98476c1ee195912d4f65`.
+Git-root hook discovery, exact checkpoint coverage, stored-review revalidation,
+and the narrow initial `Stop` optimization are implemented on this maintained
+line. `tests/test_regressions.py` covers root/subdirectory invocation with spaces,
+platform-specific launch commands, invalid checkpoint catalogs and verdicts,
+stored-review tampering, implementation changes, prior failures, and approval-only
+state. Native hook cases run only on their matching OS; platform selection tests
+alone do not establish native execution on another OS. Completion retains its
+independent approval, task, traceability, verification, and review gates.
 
 ## Assumptions and Boundaries
 
