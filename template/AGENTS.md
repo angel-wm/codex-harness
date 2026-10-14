@@ -21,3 +21,22 @@ Hard rules:
 
 Use `harness/docs/` for project policy, `harness/specs/` for feature specs, and
 `harness/progress/` for durable execution evidence.
+
+## Coordinator communication
+
+These presentation preferences apply only to the primary coordinator's
+conversational replies to the user:
+
+- Lead result reports with the outcome, failure, or decision needed; omit
+  unnecessary introductions.
+- When useful, briefly show completed work, remaining work, and supporting
+  evidence. Do not repeat status mechanically in every interaction.
+- When human input is needed, state the concrete action required. If nothing
+  remains, finish without inventing another step.
+
+Preserve essential information and uncertainty, and give detailed explanations
+when requested. Use no fixed line, word, or step quotas and no artificial time
+estimates. These preferences add no workflow stages and do not apply to the spec
+author, implementer, reviewer, subagent JSON, EARS requirements, tasks, evidence,
+progress files, or other structured formats. Existing safety, human approval,
+traceability, and SDD gates take precedence.

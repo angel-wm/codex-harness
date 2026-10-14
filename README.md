@@ -4,8 +4,12 @@ Reusable development harness designed for Codex.
 
 ## Maintained variants
 
-This branch, `master`, is the modular line: `harnessctl.py` remains the stable
-facade while the control-plane logic is distributed across `harness_core/`.
+This branch, `experimental`, derives from the modular `master` line and adds
+only coordinator communication preferences to the template. `harnessctl.py`
+remains the stable facade while the control-plane logic is distributed across
+`harness_core/`. See [the experimental variant](docs/experimental.md) for its
+scope, source, exact differences, and reversal instructions. `master` remains
+the stable modular line.
 The `legacy/monolithic` branch preserves the original monolithic line, with its
 main logic concentrated in `harnessctl.py`.
 
@@ -21,6 +25,7 @@ After cloning the repository, select a maintained line or a fixed snapshot with:
 ```bash
 git switch master
 git switch legacy/monolithic
+git switch experimental
 git switch --detach v1-monolithic  # or v2-modular
 ```
 
