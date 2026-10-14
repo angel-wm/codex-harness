@@ -2,6 +2,7 @@
 """Codex hook adapter for fast validation and bounded stop-time verification."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -56,6 +57,14 @@ def stop(root: Path, event: dict[str, Any]) -> int:
         return emit({})
     verification = payload.get("verification")
     current = payload.get("implementation_fingerprint")
+    # Approval changes only volatile coordinator state. An empty content digest
+    # means implementation has not started; completion still requires verification.
+    if (
+        verification is None
+        and payload.get("approval_current") is True
+        and current == hashlib.sha256(b"").hexdigest()
+    ):
+        return emit({})
     is_current = (
         isinstance(verification, dict)
         and verification.get("success") is True

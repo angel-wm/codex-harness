@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 harness/scripts/codex_hook.py",
-            "commandWindows": "py -3 harness/scripts/codex_hook.py",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/harness/scripts/codex_hook.py\"",
+            "commandWindows": "py -3 -c \"import pathlib, subprocess, sys; root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], encoding='utf-8').strip(); sys.exit(subprocess.call([sys.executable, str(pathlib.Path(root) / 'harness/scripts/codex_hook.py')]))\"",
             "timeout": 30,
             "statusMessage": "Validating harness state"
           }
@@ -19,8 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 harness/scripts/codex_hook.py",
-            "commandWindows": "py -3 harness/scripts/codex_hook.py",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/harness/scripts/codex_hook.py\"",
+            "commandWindows": "py -3 -c \"import pathlib, subprocess, sys; root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], encoding='utf-8').strip(); sys.exit(subprocess.call([sys.executable, str(pathlib.Path(root) / 'harness/scripts/codex_hook.py')]))\"",
             "timeout": 900,
             "statusMessage": "Checking final SDD gates"
           }

@@ -181,7 +181,7 @@ class TestVerificationAndReview(unittest.TestCase):
                     "passed boolean",
                 ),
                 "duplicate checkpoint": (
-                    lambda payload: payload["checkpoints"].append({"name": "scope", "passed": True}),
+                    lambda payload: payload["checkpoints"].append(copy.deepcopy(payload["checkpoints"][0])),
                     "duplicate entry",
                 ),
                 "failed approved checkpoint": (
