@@ -224,10 +224,13 @@ session, or a general request to continue is not approval. The coordinator then:
    review all agree.
 
 Reviewer JSON is validated as a strict contract. Requirement entries must be
-unique and complete, checkpoint entries must be unique and well-formed, evidence
-and findings must be non-empty, `APPROVED` requires all requirements and
-checkpoints to pass, and `CHANGES_REQUESTED` requires at least one actionable
-finding.
+unique and complete. Checkpoints must match every item in
+`harness/checkpoints.md` exactly once, using the full text after the checkbox
+(including inline Markdown and punctuation). Omissions, duplicates, unknown names,
+and malformed entries are rejected. Evidence and finding fields must be non-empty;
+`APPROVED` requires all requirements and checkpoints to pass, and
+`CHANGES_REQUESTED` requires at least one actionable finding. `complete` validates
+the stored review again against the current checkpoint catalog.
 
 Checking task boxes does not invalidate approval. Changing requirement text,
 design, or task text does. A blocked feature preserves its prior state, timestamp,
@@ -267,10 +270,19 @@ opens a pull request, adds a remote, or mutates an existing remote.
 
 ## Hooks
 
+Both hooks locate `harness/scripts/codex_hook.py` from the Git root, so they
+work from the root or subdirectories, including repository paths with spaces.
+The configuration supplies separate Windows and POSIX launch commands.
+
 The trusted `PostToolUse` hook runs fast `validate` checks after writes. The
-trusted `Stop` hook always validates and runs full verification only when an
-`in_progress` implementation differs from its last successful verification. A
-failure requests one continuation; `stop_hook_active` prevents an infinite loop.
+trusted `Stop` hook always performs structural validation. It skips the initial
+full verification only when approval is current, no implementation content has
+changed from the approval baseline, and no prior verification evidence exists.
+Otherwise, an active implementation requires verification unless a successful
+result already matches its feature and fingerprint; failed evidence is never
+ignored. A failure requests one continuation; `stop_hook_active` prevents an
+infinite loop. `complete` still independently requires current approval, checked
+tasks, traceability, successful current verification, and an approved current review.
 
 If hooks are disabled or untrusted, invalid work still cannot pass the
 authoritative `approve`, `record-review`, or `complete` commands.
