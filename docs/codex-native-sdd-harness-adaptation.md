@@ -1,5 +1,11 @@
 # Codex-Native SDD Harness Adaptation
 
+This document records the approved design and its implementation closeout.
+The correction record identifies subsequent changes. Use the [README](../README.md)
+for installation and operation, and the canonical files under `template/` for
+current executable behavior and agent contracts. Future-tense passages below
+record the original design intent, not unfinished functionality.
+
 ## Summary
 
 Build `codex-harness` as the source repository for a reusable, English-language template under `template/`. The reference repository remains untouched. The template will support the Codex desktop app and Codex CLI, use ChatGPT authentication without API keys, and work with target applications written in any language; only the harness control plane will require Python 3.11+ standard library.
@@ -25,7 +31,7 @@ Replace the Claude-specific layer as follows:
 | Root `feature_list.json`, `specs/`, `progress/`, and generic `docs/` | A visible `harness/` namespace that avoids collisions in existing repositories while keeping specs and progress easy to inspect. |
 | Notes CLI and Unix-specific commands | A language-neutral command configuration, Windows/POSIX command variants, and a small disposable test fixture rather than a bundled Notes application. |
 
-The installed Codex client is already authenticated through ChatGPT and exposes hooks and multi-agent support, so the implementation will not add the OpenAI SDK, an API key, model credentials, or direct Responses API calls. ChatGPT account sign-in is a supported Codex setup path. [Official quickstart](https://learn.chatgpt.com/docs/quickstart)
+At the original design baseline, the installed Codex client was authenticated through ChatGPT and exposed hooks and multi-agent support. The implementation therefore does not add the OpenAI SDK, an API key, model credentials, or direct Responses API calls. ChatGPT account sign-in is a supported Codex setup path. [Official quickstart](https://learn.chatgpt.com/docs/quickstart)
 
 ## Template and Control-Plane Design
 
@@ -68,6 +74,7 @@ codex-harness/
 │           ├── harnessctl.py
 │           ├── codex_hook.py
 │           └── harness_core/
+│               ├── __init__.py
 │               ├── repository.py
 │               ├── specs.py
 │               ├── state.py
@@ -205,7 +212,7 @@ Behavior:
 - `doctor` checks Python version, Git availability, required template files, configuration completeness, JSON schemas, spec structure, and configured command executables.
 - `status` reports the active feature, next pending feature, gate state, approval freshness, latest verification, and latest review.
 - `validate` performs fast structural checks without running the target project’s full test suite.
-- `run bootstrap` and `run verify` execute the configured command groups and create machine-readable verification evidence.
+- `run bootstrap` and `run verify` execute their configured command groups and return machine-readable results. Only `run verify` persists completion evidence in `harness/progress/verification.json`.
 - `spec-ready` is allowed only from `pending`, after the three spec files pass structural and EARS checks.
 - `approve` is allowed only from `spec_ready` and only when invoked by the coordinator in response to an explicit human approval message. It verifies a clean Git worktree, calculates the approved-spec digest, records the current Git `HEAD` as the implementation baseline, and moves the feature to `in_progress`.
 - Because the spec-author phase creates tracked artifacts, users must commit those reviewed spec/state changes before approval. Unrelated existing work must likewise be committed or stashed.
@@ -415,10 +422,20 @@ state. Native hook cases run only on their matching OS; platform selection tests
 alone do not establish native execution on another OS. Completion retains its
 independent approval, task, traceability, verification, and review gates.
 
+### Documentation review: 2026-10-14
+
+Presentation was reviewed against the
+[Repository Documentation Readability Guide, version 0.2](https://github.com/angel-wm/repository-documentation-readability/blob/65c2f82c9e76b4340320618e42a7e3a59332ffe7/GUIDE.md).
+This is guidance, not a certification or an additional SDD gate. The README provides
+entry paths, installation, operation, and recovery; the existing design, template
+policy, workflow skill, and agent contracts retain their own responsibilities.
+Examples and detailed rules are linked to their existing sources where practical.
+No RRD skill is installed. Additional diagrams, document hierarchies, and documentation
+linters were unnecessary for this scope; the existing text and file trees suffice.
+
 ## Assumptions and Boundaries
 
 - `harness-sdd-reference` is read-only reference material and will not be edited.
-- Existing uncommitted changes in `codex-harness/README.md` belong to the user and will be preserved while expanding the document.
 - The template is generic; the Notes CLI will not be copied into the distributable template.
 - Target projects must use Git and Python 3.11+ for the harness control plane, but their application language and build system are unrestricted.
 - Model and reasoning choices remain user/session controlled; subagents inherit them.

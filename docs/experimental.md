@@ -39,6 +39,10 @@ RTK and Matt Pocock's methodologies are not integrated in this variant.
 
 ## Exact differences from the base
 
+The initial adaptation changed only the three files below. Shared documentation
+improvements are also kept equivalent to current modular `master`; the starting
+commit above identifies the original base, not the current stable branch tip.
+
 | File | Change |
 |---|---|
 | `template/AGENTS.md` | One section scoped to the primary coordinator's conversational replies to the user. |
@@ -56,10 +60,12 @@ behavioral effect is how the coordinator presents conversational information.
 ## Validation and reversal
 
 Use the existing `python -m unittest discover -s tests -v` suite for regression
-and configuration checks. Review the diff from the base above to confirm that
-only the three listed files differ and that the new instructions exclude agent
-contracts and structured artifacts. These checks do not measure conversational
-quality or guarantee that every future response follows the preference.
+and configuration checks. Compare this branch with current `master` to confirm
+that only the three listed files differ and that the communication instructions
+exclude agent contracts and structured artifacts. Comparing against the original
+starting commit also includes later shared documentation improvements. These checks
+do not measure conversational quality or guarantee that every future response
+follows the preference.
 
 To remove just the behavior in this source template or an installed target,
 delete the `Coordinator communication` section from the relevant `AGENTS.md`.
