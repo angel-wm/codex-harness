@@ -1,6 +1,14 @@
 # Codex Harness
 
-Reusable development harness designed for Codex.
+Reusable specification-driven development (SDD) harness for developers using
+Codex in Git repositories. It keeps specifications, human approval, implementation,
+verification, and independent review in a resumable workflow. Target applications
+may use any language; the harness requires Python 3.11+ and Git.
+
+Start with [installation](#install-into-a-target-repository), then
+[the two-turn workflow](#run-the-two-turn-sdd-workflow). For existing installations,
+see [maintenance and recovery](#maintenance-and-recovery). For internals, see
+[the approved design](docs/codex-native-sdd-harness-adaptation.md#template-and-control-plane-design).
 
 ## Maintained variants
 
@@ -16,11 +24,16 @@ The presence of `v2-modular` does not make the monolithic variant obsolete or
 make the modular variant the required or recommended choice; both are retained
 intentionally so they can be developed and evaluated separately.
 
+The [experimental variant](https://github.com/angel-wm/codex-harness/blob/experimental/docs/experimental.md)
+derives from modular `master` and adapts I Have ADHD communication principles for
+the coordinator. It retains the SDD controls; both stable lines remain available.
+
 After cloning the repository, select a maintained line or a fixed snapshot with:
 
 ```bash
 git switch legacy/monolithic
 git switch master
+git switch experimental
 git switch --detach v1-monolithic  # or v2-modular
 ```
 
@@ -79,8 +92,11 @@ active Codex session.
 
 ## Install into a target repository
 
-Review the template before copying it. From this repository, copy all entries,
-including hidden `.agents` and `.codex` directories.
+Run the copy command from the selected source checkout into an existing target
+Git repository. Review collisions in `AGENTS.md`, `.agents/`, `.codex/`, and
+`harness/` first: these commands overwrite matching files. If any exist, merge the
+needed entries individually while preserving target policy and state. Include
+hidden `.agents` and `.codex` directories.
 
 Windows PowerShell:
 
@@ -102,7 +118,9 @@ Then:
 
 1. Replace `REPLACE_ME` with the same project name in `harness/config.json` and
    `harness/features.json`.
-2. Replace the template architecture and conventions with target-specific policy.
+2. Customize [architecture](template/harness/docs/architecture.md),
+   [conventions](template/harness/docs/conventions.md), and
+   [review checkpoints](template/harness/checkpoints.md) for the target project.
 3. Configure at least one `commands.verify` step. Bootstrap may remain empty.
 4. Replace or remove the example feature.
 5. Commit the installed and customized harness.
@@ -116,26 +134,12 @@ silent assumption.
 
 ## Configure commands
 
-Command groups are ordered arrays. Each step is executed directly, never through
-a shell:
-
-```json
-{
-  "name": "unit-tests",
-  "argv": ["python", "-m", "unittest", "discover"],
-  "windows_argv": ["py", "-3", "-m", "unittest", "discover"],
-  "posix_argv": ["python3", "-m", "unittest", "discover"],
-  "cwd": ".",
-  "env": {},
-  "timeout_seconds": 600
-}
-```
-
-The platform-specific vector wins when present; otherwise `argv` is used. `cwd`
-must remain inside the Git root. Steps run sequentially and stop at the first
-failure or timeout. Only metadata and fingerprints are persisted; failing output
-is printed to the active turn. Never put secrets in checked-in configuration or
-command arguments.
+Configure ordered command steps in `harness/config.json` using the
+[verification policy and command example](template/harness/docs/verification.md).
+Platform-specific argument lists override `argv`; steps run sequentially without
+a shell and stop on failure or timeout. Bootstrap is optional. Full command output
+is shown on failure; only `run verify` persists verification metadata and
+fingerprints. Keep secrets out of checked-in configuration and arguments.
 
 Run the initial checks on Windows:
 
@@ -197,10 +201,8 @@ harness/specs/<feature>/design.md
 harness/specs/<feature>/tasks.md
 ```
 
-Requirements use strict English EARS with stable `R1`, `R2`, … identifiers and
-one uppercase `MUST` obligation each. Each requirement includes an explicit
-acceptance mapping such as `Acceptance: A1, A2`. Tasks use ordered `T1`, `T2`, …
-checkboxes and requirement references.
+Use the [specification formats and traceability rules](template/harness/docs/sdd.md)
+for strict English EARS requirements, acceptance mappings, and ordered tasks.
 
 After `spec-ready`, the workflow stops. Review the three files and feature-state
 change. Commit those reviewed phase-one artifacts so approval can begin from a
@@ -223,14 +225,9 @@ session, or a general request to continue is not approval. The coordinator then:
    traceability, successful current verification, and an `APPROVED` current
    review all agree.
 
-Reviewer JSON is validated as a strict contract. Requirement entries must be
-unique and complete. Checkpoints must match every item in
-`harness/checkpoints.md` exactly once, using the full text after the checkbox
-(including inline Markdown and punctuation). Omissions, duplicates, unknown names,
-and malformed entries are rejected. Evidence and finding fields must be non-empty;
-`APPROVED` requires all requirements and checkpoints to pass, and
-`CHANGES_REQUESTED` requires at least one actionable finding. `complete` validates
-the stored review again against the current checkpoint catalog.
+The [reviewer contract](template/.codex/agents/sdd-reviewer.toml) defines the
+required JSON fields. The [control-plane review rules](docs/codex-native-sdd-harness-adaptation.md#control-plane-cli)
+explain exact checkpoint coverage and stored-review revalidation at completion.
 
 Checking task boxes does not invalidate approval. Changing requirement text,
 design, or task text does. A blocked feature preserves its prior state, timestamp,
@@ -314,6 +311,32 @@ runners with Python 3.11 and 3.13. When an installed Codex CLI is available, an
 additional smoke test copies the template configuration into an isolated Codex
 home, parses it with `--strict-config`, and uses an unknown-field negative control
 to prove strict parsing is active without starting a model turn.
+
+## Maintenance and recovery
+
+The root [development policy](AGENTS.md) governs this source repository. The
+[installed policy](template/AGENTS.md) and [workflow skill](template/.agents/skills/sdd-workflow/SKILL.md)
+govern target projects; target-specific rules belong in `harness/docs/`, while
+`harness/specs/` and `harness/progress/` hold approved scope and execution evidence.
+CLI `--help` describes accepted arguments. Keep detailed formats and changing
+policy in these sources rather than copying them into the README.
+
+Existing installations do not update automatically. Compare the selected branch's
+`template/` with the installed files, merge changes while preserving target
+configuration, policy, specs, and progress, then run `doctor` and the target's
+configured verification. Review and trust changed hooks again. For harness
+contributions, edit the canonical `template/` and run the suite above.
+
+- If `doctor` reports placeholders, missing verification commands, or executables,
+  finish configuration and check the selected platform's executable on `PATH`.
+  Rerun `doctor`; a healthy installation returns `"ok": true` and exit code 0.
+- If `approve` rejects a dirty worktree, inspect `git status`, preserve unrelated
+  work, and commit the reviewed spec/state before retrying explicit approval.
+  If the spec changed, obtain approval for the updated scope first.
+- If completion rejects stale verification or review, inspect `status --json`,
+  rerun `run verify`, and obtain and record an independent review for the current
+  fingerprint. Retry `complete` only after all reported gates pass; do not edit
+  stored evidence to bypass a rejection.
 
 ## Design and documentation
 
