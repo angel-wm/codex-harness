@@ -16,9 +16,9 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 
 | Area | Decision |
 | --- | --- |
-| Triggers | Run on demand when a new model becomes available or the harness changes; do not assume automatic discovery of new model releases |
+| Triggers | Run on demand when a new model becomes available or the harness changes; do not assume automatic discovery of new model releases. Treat these as **two distinct experiment types** |
 | Branch coverage | Evaluate `master`, `legacy/monolithic`, and `experimental` separately; **start implementation on `experimental`**, then extend after validation |
-| Comparisons | Support direct comparisons across models and branches, using preserved results where comparable; keep history until user deletion (no automatic deletion of past results) |
+| Comparisons | Compare against both predeclared ideal expectations and historical baselines; compare different models on the same harness revision, or harness revisions on the same current model. Keep history until intentional user deletion |
 | Evaluation targets | Measure harness rule compliance and generated-code quality separately; include correctness, tests, security, **architecture, and maintainability** |
 | Critical invariants | Require 100% pass on human approval, state transitions, scope boundaries, safety constraints, and established SDD gates |
 | Reviewer competence | Include deliberately defective implementations and test whether the **actual model reviewer** identifies the seeded defects |
@@ -30,9 +30,9 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Failure handling | Stop the affected scenario on a critical failure but continue unrelated scenarios |
 | Execution | Support **both** an ordinary natural-language instruction and a reusable skill launched from Codex Desktop, on demand; no paid OpenAI API dependency |
 | Consumption | Allow both a measurement-only mode and a mode with configured budgets/limits, if the chosen execution mechanism can enforce them; offer quick and full suites with selective reruns |
-| Reporting | Produce readable Markdown explanations and structured machine-readable evidence for future Codex handoffs |
+| Reporting | Store readable Markdown reports and structured machine-readable evidence **within the repository folder but outside Git tracking**, available to Codex locally; preserve reports independently from temporary test repositories |
 | Diagnoses | Report violated criteria, supporting evidence, suspected components, and **specific recommended changes** (without automatically generating or applying patches) |
-| Acceptance | Require 100% passing critical checks; set separate numerical quality thresholds after calibration |
+| Acceptance | Require 100% on critical controls, functional correctness, security, and mandatory architectural constraints; score qualitative architecture and maintainability separately with a calibrated rubric; no arbitrary quality percentage approved yet |
 | Change control | Explicit human approval is required before implementing fixes; track the resulting decision and independent verification |
 
 ### Confirmed design choices (second interview)
@@ -46,6 +46,25 @@ These choices were explicitly selected after the initial scope discussion:
 5. **Consumption controls:** provide an observe/measure mode and a configurable bounded mode. A hard budget is only promised if the runner can actually stop execution at the limit.
 6. **Test repositories:** automatically clean up passing disposable environments; preserve failed environments and reproducible context. Never delete an unrelated or user-owned repository.
 7. **Diagnosis:** suggest actionable changes to specified files/components and explain evidence; preparing or applying a code patch is outside the agreed scope.
+
+### Third interview: confirmed choices and clarified intent
+
+- **Pilot cases accepted:** start `experimental` with no-approval rule enforcement, seeded-defect detection by the live reviewer, small-code implementation quality, and experimental coordinator communication. Expand to SDD end-to-end tests later. Existing deterministic verification remains available.
+- **Automatic code evaluation accepted:** combine executable, objective assertions with automated rubric-based assessment for maintainability and architecture. Rubric judgments are less reliable than tests; design/maintainability score thresholds and allowable variation remain **undecided**. Mandatory constraints and critical correctness/security checks may not be compensated for by a high aggregate score.
+- **Report location clarified:** write output inside the working repository directory, in a proposed ignored local folder such as `.eval-results/`, so Codex Desktop can inspect it. Results should not be committed to Git by default. The exact path and `.gitignore` change are **not yet implemented**. Passing test workspaces may be deleted while their reports remain; failed workspaces stay available for inspection.
+- **Comparison preference confirmed:** use **both** expectation-based pass/fail and historical reference results. Preserve comparable older results but do not optimize the harness for old models.
+- **Single-source-of-truth accepted:** keep this backlog canonical on `master`, then link from other branches if appropriate during implementation rather than maintaining three independent backlogs.
+
+#### Two evaluation questions
+
+1. **New model adaptation:** hold the selected branch/harness commit, evaluation fixture, and rubric constant. Compare the new model with a stored run of the previously supported model (when evidence is comparable), then diagnose and improve the harness for the **new** model. Backward compatibility is optional, not an acceptance condition.
+2. **Harness improvement:** hold the **latest selected model**, test fixture, and rubric constant. Compare a saved baseline of the existing harness against the modified harness; use the baseline to assess whether the change actually helps. This mode does not require testing older model versions.
+
+Label noncomparable history honestly when the scenario, model settings, test oracle, or branch changes. For both modes, passing objective acceptance criteria takes precedence over relative performance.
+
+#### Consumption limit interpretation (pending feasibility)
+
+Two policies remain desired: (1) **measurement-only** for observed tokens/credits and time, and (2) **bounded execution**. The user requested clarification because a reliable model-token stop in Desktop is not established. A task count or elapsed-time target can prevent launching additional test cases, but cannot guarantee an already running Desktop turn stops at an exact token count. Until a supported stop/control mechanism is verified, describe token budgets in Desktop as **advisory**, distinguish time/case-count bounds from guaranteed token ceilings, and do not promise strict cutoff. Decide whether strict-mode requests should refuse to start when no actual enforcement exists.
 
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
@@ -93,11 +112,11 @@ Relevant references:
 - **Codex Desktop launch:** both ordinary prompts and a reusable skill are required. Confirm the precise invocation and available trace/usage evidence before implementation; do not invent a slash command.
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
-- **Costs and enforcement:** benchmark usage and runtime; determine whether a hard timeout/token budget is enforceable in Desktop, or only an advisory limit; never label advisory budgets as strict.
-- **Scoring:** finalize seeded defects, reproducible result oracles, the architecture/maintainability rubric, quality thresholds, and how model versus harness failures are attributed.
-- **Comparisons:** finalize a baseline format and precise rules for meaningful cross-version/cross-branch comparison; old model support is not a goal.
-- **Storage and cleanup:** choose secure local/artifact paths, sensitive-data redaction, explicit history-deletion workflow, and safe cleanup of passing test repositories.
-- **Coverage rollout:** pilot `experimental`; settle minimal quick-suite cases and acceptance checks before rollout to other branches.
+- **Costs and enforcement:** determine actual per-case usage observability, whether Desktop exposes enforceable stop limits, and behavior for a strict-limit request if no such control exists. Benchmark usage and runtime; never present advisory limits as guarantees.
+- **Scoring:** finalize seeded defects, reproducible result oracles, rubric with explicit examples/weights, permissible evaluator variance, empirical calibration, and quality thresholds; distinguish mandatory violations from softer maintainability judgments.
+- **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
+- **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
+- **Coverage rollout:** pilot `experimental` with the four agreed case categories, determine individual acceptance checks and full-suite promotion before rollout to other branches.
 - **Approval simulation:** design a safe, pre-authorized disposable fixture for full-flow tests without weakening real human-approval gates.
 - **CI integration:** choose how GitHub Actions validates evaluators or ingests exported results without controlling the user's Desktop session.
 
