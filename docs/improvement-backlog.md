@@ -32,7 +32,7 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Consumption | **Do not design token-limit enforcement or automatic stopping.** Optimize redundant work without sacrificing validity; measure usage/time when available, run quick or full suites on demand, and permit the user to monitor or interrupt manually |
 | Reporting | Store readable Markdown reports and structured machine-readable evidence **within the repository folder but outside Git tracking**, available to Codex locally; preserve reports independently from temporary test repositories |
 | Diagnoses | Report violated criteria, supporting evidence, suspected components, and **specific recommended changes** (without automatically generating or applying patches) |
-| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report **functional pass** and **quality assessment** separately, using a four-level calibrated rubric; the quality blocking threshold is still undecided |
+| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report functional correctness separately from qualitative quality. Provisional minimum **level 2 (good) in each scored dimension**, subject to calibrated anchors; report functional-pass/quality-insufficient separately |
 | Change control | Explicit human approval is required before implementing fixes; track the resulting decision and independent verification |
 
 ### Confirmed design choices (second interview)
@@ -82,6 +82,31 @@ Label noncomparable history honestly when the scenario, model settings, test ora
 
 **Unresolved calibration:** Define precise anchors for all six maintainability categories, objective architecture constraints versus subjective preference, whether low noncritical quality blocks model acceptance, whether to add architecture/maintainability defect seeds, and how to report regressions in consumption without an arbitrary hard threshold.
 
+### Fifth interview: decisions and evaluation independence
+
+**Confirmed by the user:**
+
+- **Branch-specific expectations:** share cases, fixtures and deterministic criteria where semantics match (particularly modular `master` and `experimental`), but maintain independent results and add branch-specific checks as their behavior diverges. The deliberately monolithic `legacy/monolithic` branch must not fail a modularity requirement; favor appropriate modularity for modular branches without penalizing justified cohesive code.
+- **Quality threshold:** provisional **level 2 on a 0–3 anchored scale for each scored dimension**. Level 2 means all material expectations are met, **not** that only two thirds of requirements have passed. Define explicitly what distinguishes level 2 from 3, and make material omissions fail their mandatory gates regardless of averaged score.
+- **Quality findings:** preserve separate results for functionality and internal code quality. Functionally correct but poorly designed work is reported as such and may be improved without regressing behavior. The exact mapping from low noncritical quality to overall `Apt / Apt with improvements / Not apt / Inconclusive` remains to be specified.
+- **Reviewer defect injection:** include architectural and maintainability defects in the **full** suite in addition to known functional, security and requirement defects. Keep real model reviewer detection distinguishable from scripted verdict validation.
+- **Uncertain grader output:** mark `inconclusive`, capture reasons/evidence, and selectively rerun or investigate; do not claim a definitive quality score without sufficient evidence.
+- **Efficiency diagnosis:** report cost tradeoffs and recommend reverting or reworking an inefficient harness change when evidence justifies it, **never revert automatically**. Preserve human authority to accept, reject or modify recommendations.
+- **Realism:** test small, medium and complex tasks across suite tiers; include deliberately ambiguous or conflicting instructions to assess robustness.
+- **Conclusions:** use four high-level labels: **Apt**, **Apt with improvements**, **Not apt**, and **Inconclusive**; document the rule mapping from individual findings to these labels before implementation.
+
+**Dimensions requested and clarification:**
+
+The six previously agreed dimensions were readability, duplication, complexity, coupling, ease of modification, and test quality. The user specifically values **error handling, dependency management and "stability"**, and asks what the remaining part of testability covers. Do not silently equate stability with testability; confirm whether the intended additional quality is runtime robustness, testability, or both. Treat error handling and dependency hygiene as explicit, individually visible checks at minimum; whether they are independently scored dimensions remains **open**. `Test quality` assesses existing tests (assertions, coverage of edge cases, reliable tests); `testability` assesses how easily code can be isolated and tested, including dependency injection, controlled side effects, and ability to test failure paths. These overlap but are not identical. Clarify which receive independent 0–3 scores versus mandatory checks without proliferating redundant weighted dimensions.
+
+`Portability` means working across supported execution environments (e.g., Windows and POSIX), **not** whether Codex can generate code in multiple programming languages. User assigns it low product priority; retain existing cross-platform harness regression checks as compatibility invariants rather than a new subjective quality dimension. Observability remains **medium priority** (diagnosable failures, logs or evidence where useful), not a high-priority new score.
+
+**Independent assessment using only Codex subscription (proposed, pending confirmation):**
+
+No external Claude account or paid API is required. The same latest Codex model may act as both implementer and evaluator **in separate sessions or context-isolated roles**, with the evaluator read-only, given only the implementation, approved requirements, and blind rubric, and **not** shown the original implementer's reasoning or seeded-defect answer key. This reduces contextual leakage but **does not eliminate correlated model-family bias**, even with an isolated directory. Use deterministic tests and seeded-defect oracles as the primary ground truth; assess the grader against both known-good and known-bad controls, report disagreements/inconclusive cases, and use human review only when needed. Exact Desktop session and filesystem isolation must be validated, not assumed.
+
+**Open acceptance details:** calibrate rubric with concrete 0/1/2/3 examples for each dimension; decide whether stability and testability are separately scored; map level 1 or an isolated low score to the four summary outcomes; define objective versus interpretative checks; define what makes an evaluator disagreement inconclusive.
+
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
 Evaluate the **model's actions** independently from the **control plane's enforcement**. A blocked unauthorized transition is evidence that the control plane worked; it is not proof that the model followed instructions. Record observed tool actions and state transitions when the interface exposes them, and mark unobservable behavior as **not measured** instead of passing it by assumption.
@@ -129,10 +154,10 @@ Relevant references:
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
 - **Resource transparency:** record runtime, model turns, review cycles, and observable token/credit usage for comparable runs; highlight costs and inefficiency while preserving quality. Do not build automatic interruption or budget enforcement.
-- **Scoring:** finalize known-defect fixtures, the six-dimension rubric and sample anchors, evaluator variance/calibration, thresholds for subjective quality, and whether quality below threshold blocks adoption. Respect branch-specific architectural intent while favoring appropriate modularity.
+- **Scoring:** finalize seeded fixtures, anchored 0–3 examples (especially 2 versus 3), whether error handling/dependencies/stability/testability receive separate scores or named checks, evaluator calibration and how functional-pass/quality-insufficient maps to overall status. Respect branch-specific architecture.
 - **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
 - **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
-- **Coverage rollout:** pilot `experimental` with the four agreed case categories, determine individual acceptance checks and full-suite promotion before rollout to other branches.
+- **Coverage rollout:** pilot `experimental` with four agreed quick cases; share common fixtures and oracles with modular `master`, add branch-specific tests when needed, and avoid a modularity requirement for `legacy/monolithic`. Include seeded architecture/maintainability defects in the full suite.
 - **Approval simulation:** design a safe, pre-authorized disposable fixture for full-flow tests without weakening real human-approval gates.
 - **CI integration:** choose how GitHub Actions validates evaluators or ingests exported results without controlling the user's Desktop session.
 
