@@ -29,7 +29,7 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Environments | Use disposable, isolated test repositories/worktrees; **remove those that pass, retain those that fail** for investigation, subject to safe cleanup checks |
 | Failure handling | Stop the affected scenario on a critical failure but continue unrelated scenarios |
 | Execution | Support **both** an ordinary natural-language instruction and a reusable skill launched from Codex Desktop, on demand; no paid OpenAI API dependency |
-| Consumption | Allow both a measurement-only mode and a mode with configured budgets/limits, if the chosen execution mechanism can enforce them; offer quick and full suites with selective reruns |
+| Consumption | **Do not design token-limit enforcement or automatic stopping.** Optimize redundant work without sacrificing validity; measure usage/time when available, run quick or full suites on demand, and permit the user to monitor or interrupt manually |
 | Reporting | Store readable Markdown reports and structured machine-readable evidence **within the repository folder but outside Git tracking**, available to Codex locally; preserve reports independently from temporary test repositories |
 | Diagnoses | Report violated criteria, supporting evidence, suspected components, and **specific recommended changes** (without automatically generating or applying patches) |
 | Acceptance | Require 100% on critical controls, functional correctness, security, and mandatory architectural constraints; score qualitative architecture and maintainability separately with a calibrated rubric; no arbitrary quality percentage approved yet |
@@ -43,7 +43,7 @@ These choices were explicitly selected after the initial scope discussion:
 2. **Desktop entry points:** support a named reusable evaluation skill and a natural-language request; both should map to the same underlying test definitions. Exact UI invocation must be verified during implementation.
 3. **History:** retain all previous evaluation reports and machine-readable evidence until explicitly deleted. Any deletion operation must be intentional and scope-limited.
 4. **Code quality:** evaluate architecture and maintainability alongside functional correctness, tests, and security; subjective dimensions require transparent rubrics and must not be treated as deterministic facts.
-5. **Consumption controls:** provide an observe/measure mode and a configurable bounded mode. A hard budget is only promised if the runner can actually stop execution at the limit.
+5. **Consumption principle (superseded by fourth interview):** initial interest in limits meant conserving usage, not requiring a stopping mechanism. See the latest decision below; no bounded-mode requirement remains.
 6. **Test repositories:** automatically clean up passing disposable environments; preserve failed environments and reproducible context. Never delete an unrelated or user-owned repository.
 7. **Diagnosis:** suggest actionable changes to specified files/components and explain evidence; preparing or applying a code patch is outside the agreed scope.
 
@@ -62,9 +62,9 @@ These choices were explicitly selected after the initial scope discussion:
 
 Label noncomparable history honestly when the scenario, model settings, test oracle, or branch changes. For both modes, passing objective acceptance criteria takes precedence over relative performance.
 
-#### Consumption limit interpretation (pending feasibility)
+#### Latest consumption decision (fourth interview)
 
-Two policies remain desired: (1) **measurement-only** for observed tokens/credits and time, and (2) **bounded execution**. The user requested clarification because a reliable model-token stop in Desktop is not established. A task count or elapsed-time target can prevent launching additional test cases, but cannot guarantee an already running Desktop turn stops at an exact token count. Until a supported stop/control mechanism is verified, describe token budgets in Desktop as **advisory**, distinguish time/case-count bounds from guaranteed token ceilings, and do not promise strict cutoff. Decide whether strict-mode requests should refuse to start when no actual enforcement exists.
+**Confirmed:** no automated token cutoff, execution-stop controller, hard budget mode, or advisory budget gate is required. The user can monitor Codex Desktop and manually interrupt a run when desired, but is willing to run expensive or long evaluations when they materially improve the evidence. Avoid waste by making tests targeted, reusing existing deterministic checks and historical comparable results, choosing representative fixtures, and repeating only when uncertainty warrants it. **Do not reduce meaningful coverage, realism, or reviewer-detection quality just to minimize token use.** Record elapsed time and token/credit usage where the platform exposes them; do not invent usage totals. The previous bounded-execution concept is explicitly superseded.
 
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
@@ -112,7 +112,7 @@ Relevant references:
 - **Codex Desktop launch:** both ordinary prompts and a reusable skill are required. Confirm the precise invocation and available trace/usage evidence before implementation; do not invent a slash command.
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
-- **Costs and enforcement:** determine actual per-case usage observability, whether Desktop exposes enforceable stop limits, and behavior for a strict-limit request if no such control exists. Benchmark usage and runtime; never present advisory limits as guarantees.
+- **Resource transparency:** record observable runtime and token/credit usage where available; identify high-cost cases and redundant runs. Do not build automatic interruption or budget enforcement.
 - **Scoring:** finalize seeded defects, reproducible result oracles, rubric with explicit examples/weights, permissible evaluator variance, empirical calibration, and quality thresholds; distinguish mandatory violations from softer maintainability judgments.
 - **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
 - **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
