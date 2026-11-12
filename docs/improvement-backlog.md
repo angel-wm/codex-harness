@@ -10,7 +10,7 @@ An agreed design direction is **not** approval to change executable code. No ite
 
 ### Purpose
 
-Evaluate whether a newly selected Codex model respects harness rules and generates acceptable code. Diagnose failures and recommend specific, evidence-backed changes so the harness can be adapted to the **latest** model. Preserving compatibility with an older model is not a requirement.
+Evaluate **the harness's behavior with the newest Codex model the user intends to keep using**: adherence to established SDD rules, generated-code correctness and quality, and implementation efficiency. Identify adaptations to the harness; **do not grade the model for adoption or recommend staying on an old model**. Preserving compatibility with older models is not a requirement.
 
 ### Agreed direction
 
@@ -32,7 +32,7 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Consumption | **Do not design token-limit enforcement or automatic stopping.** Optimize redundant work without sacrificing validity; measure usage/time when available, run quick or full suites on demand, and permit the user to monitor or interrupt manually |
 | Reporting | Store readable Markdown reports and structured machine-readable evidence **within the repository folder but outside Git tracking**, available to Codex locally; preserve reports independently from temporary test repositories |
 | Diagnoses | Report violated criteria, supporting evidence, suspected components, and **specific recommended changes** (without automatically generating or applying patches) |
-| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report functionality and code quality separately. Minimum quality target: **2/3 per dimension** after calibration. A confirmed **1/3 quality score provisionally makes that evaluated case `Not apt`**, even if functionality passes; whether one failing case disqualifies the entire model/harness requires an explicit aggregation rule |
+| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report **functional outcome** and **code-quality outcome** separately. Provisional quality target is level **2/3 per applicable dimension** after rubric calibration. A confirmed level 1 means that case's **harness + selected model result requires adaptation**, not that the model is unusable; overall aggregation remains to be defined |
 | Change control | Explicit human approval is required before implementing fixes; track the resulting decision and independent verification |
 
 ### Confirmed design choices (second interview)
@@ -73,14 +73,14 @@ Label noncomparable history honestly when the scenario, model settings, test ora
 1. **Architecture preference:** explicitly favor modular architectures where they improve cohesion, separation of responsibilities, and maintainability. Do **not** reward needless file splitting or penalize a branch simply because its documented design is intentionally monolithic; evaluate fidelity to each branch's architectural contract and distinguish comparative design preference from a required invariant.
 2. **Maintainability criteria:** start with readability, duplication, complexity, coupling, ease of modification, and test quality. Other candidates (e.g., testability, error handling, dependency hygiene, portability, observability) may be considered but are **not yet adopted as separately weighted dimensions**.
 3. **Quality rating:** use four anchored levels **0 (deficient), 1 (needs improvement), 2 (good), 3 (excellent)** for applicable qualitative dimensions. Define observable examples per level and calibrate before assigning acceptance thresholds.
-4. **Dual outcomes:** a solution can be *functionally correct* but have *insufficient code quality*. Report both separately so quality can be improved while preserving behavior. Whether a low score independently blocks model adoption is **still open**.
+4. **Dual outcomes:** a solution can be *functionally correct* but have *insufficient code quality*. Report both separately so quality can be improved while preserving behavior. **Model adoption is not a decision made by this evaluation**; any failed quality score calls for harness investigation/adaptation.
 5. **Evaluation method:** combine deterministic assertions and automated rubric-based assessment by an evaluator that is not shown a preassigned expected score. Calibrate the evaluator using cases with known defects and review disagreements as uncertainty, not indisputable facts.
 6. **Seeded reviewer faults:** explicitly cover a functional defect, a security flaw, and a missed requirement. Whether to add a separate architectural defect and a maintainability defect as seeded reviewer cases is **still open**.
 7. **Repetition:** begin with one live-model execution per case and rerun uncertain cases or when estimating consistency. Full-suite repeat counts should be stated explicitly rather than assumed.
 8. **Challenging instructions:** include ambiguous or adversarial requests that pressure the agent to bypass SDD requirements in the full suite; preserve the human approval gate.
 9. **Efficiency:** keep a sensible balance between delivered correctness/quality and model consumption. Report runtime, model turns, reviewer cycles, and usage/credits where observable, compared to a comparable baseline; avoid unnecessary extra reviews or token waste, but do not compromise critical rules or quality just to obtain a low consumption figure. An efficiency regression is a separate finding, not an automatic reason to remove a correct improvement.
 
-**Unresolved calibration:** Define precise anchors for all six maintainability categories, objective architecture constraints versus subjective preference, whether low noncritical quality blocks model acceptance, whether to add architecture/maintainability defect seeds, and how to report regressions in consumption without an arbitrary hard threshold.
+**Historical note (now superseded by later interviews):** At this point rubric anchors, architecture/maintainability defect seeds, and evaluation/consumption policies were unresolved; later interview sections contain the current decisions. The remaining scoring work concerns concrete anchors, calibrated evidence, and severity.
 
 ### Fifth interview: decisions and evaluation independence
 
@@ -88,12 +88,12 @@ Label noncomparable history honestly when the scenario, model settings, test ora
 
 - **Branch-specific expectations:** share cases, fixtures and deterministic criteria where semantics match (particularly modular `master` and `experimental`), but maintain independent results and add branch-specific checks as their behavior diverges. The deliberately monolithic `legacy/monolithic` branch must not fail a modularity requirement; favor appropriate modularity for modular branches without penalizing justified cohesive code.
 - **Quality threshold:** provisional **level 2 on a 0–3 anchored scale for each scored dimension**. Level 2 means all material expectations are met, **not** that only two thirds of requirements have passed. Define explicitly what distinguishes level 2 from 3, and make material omissions fail their mandatory gates regardless of averaged score.
-- **Quality findings:** preserve separate results for functionality and internal code quality. Functionally correct but poorly designed work is reported as such and may be improved without regressing behavior. The exact mapping from low noncritical quality to overall `Apt / Apt with improvements / Not apt / Inconclusive` remains to be specified.
+- **Quality findings:** preserve separate results for functionality and internal code quality. Functionally correct but poorly designed work is reported as such and may be improved without regressing behavior. Summary labels must describe **harness compatibility with the selected model**, not the model's suitability.
 - **Reviewer defect injection:** include architectural and maintainability defects in the **full** suite in addition to known functional, security and requirement defects. Keep real model reviewer detection distinguishable from scripted verdict validation.
 - **Uncertain grader output:** mark `inconclusive`, capture reasons/evidence, and selectively rerun or investigate; do not claim a definitive quality score without sufficient evidence.
 - **Efficiency diagnosis:** report cost tradeoffs and recommend reverting or reworking an inefficient harness change when evidence justifies it, **never revert automatically**. Preserve human authority to accept, reject or modify recommendations.
 - **Realism:** test small, medium and complex tasks across suite tiers; include deliberately ambiguous or conflicting instructions to assess robustness.
-- **Conclusions:** use four high-level labels: **Apt**, **Apt with improvements**, **Not apt**, and **Inconclusive**; document the rule mapping from individual findings to these labels before implementation.
+- **Conclusions (terminology to adapt):** the previously selected four outcomes were **Apt / Apt with improvements / Not apt / Inconclusive**. Reframe their subject as **the evaluated harness configuration**, never the model; proposed clearer labels are **Harness compatible / Compatible with improvements / Harness adaptation needed / Inconclusive**. Confirm exact labels and aggregation rules before implementation.
 
 **Dimensions requested and clarification:**
 
@@ -105,7 +105,7 @@ The six original dimensions are readability, duplication, complexity, coupling, 
 
 No external Claude account or paid API is required. The same latest Codex model may act as both implementer and evaluator **in separate sessions or context-isolated roles**, with the evaluator read-only, given only the implementation, approved requirements, and blind rubric, and **not** shown the original implementer's reasoning or seeded-defect answer key. This reduces contextual leakage but **does not eliminate correlated model-family bias**, even with an isolated directory. Use deterministic tests and seeded-defect oracles as the primary ground truth; assess the grader against both known-good and known-bad controls, report disagreements/inconclusive cases, and use human review only when needed. Exact Desktop session and filesystem isolation must be validated, not assumed.
 
-**Open acceptance details:** calibrate rubric with concrete 0/1/2/3 examples for all ten dimensions, distinguish mandatory from subjective checks, specify what one low-scoring case means for the overall model/harness verdict, and determine what makes an evaluator disagreement inconclusive.
+**Open acceptance details:** calibrate rubric with concrete 0/1/2/3 examples for all ten dimensions, distinguish mandatory from subjective checks, specify how one low-scoring case influences the **harness-with-selected-model** summary, and determine what makes an evaluator disagreement inconclusive.
 
 ### Sixth interview: additional dimensions, grading independence and Linux evidence
 
@@ -113,16 +113,39 @@ No external Claude account or paid API is required. The same latest Codex model 
 
 - **Additional independently scored dimensions:** error handling, dependency hygiene, runtime stability/robustness, and testability, in addition to the original six. Use provisional 0–3 anchors for each; do not treat testability and *test quality* as identical, or double-penalize the same symptom. Separate mandatory defects from optional improvements. Refine the rubric with examples before relying on numeric scores.
 - **Evaluator model:** use the same latest Codex model available under the user's ChatGPT subscription, in separate, read-only/context-isolated evaluation sessions with independent deterministic oracles. Another provider such as Claude is neither required nor available to this user. Isolation reduces context leakage but does not eliminate model-family bias.
-- **Grade-1 classification:** user prefers **`Not apt` for a confirmed score of 1/3 in any scored quality dimension**, rather than `Apt with improvements`, even when functional tests pass. This is a *provisional per-case classification* pending precise anchors and confirmation of aggregation across cases. Still show **functional tests: passed** and **quality: insufficient** independently, with supporting evidence. No automatic code change, model rejection, or rollout block is implemented or authorized.
+- **Grade-1 classification (clarified in seventh interview):** user prefers a confirmed **1/3 in an applicable quality dimension** to flag the evaluated case **as requiring harness adaptation**, even if functionality passes. Always distinguish **functional tests: passed** from **quality: insufficient** and provide evidence. This **does not** mean the newest model should be rejected. Aggregation across cases remains pending; no automatic code changes or rollout controls are authorized.
 - **Portability:** keep operating-system compatibility as a deterministic control, not a separately scored subjective dimension. The existing `experimental` CI run [38662939167](https://github.com/angel-wm/codex-harness/actions/runs/38662939167) (2026-10-15) passed on both `ubuntu-latest` and `windows-latest`, Python 3.11 and 3.13. This verifies that specific test suite on these runner configurations, **not** every Codex Desktop or runtime integration on Linux.
 - **Observability:** medium-priority check where applicable; not an additional standalone grade.
 
 **Still to define:**
 
 - Observable anchors for 0/1/2/3 and examples of acceptable level-2 vs exceptional level-3 code across ten dimensions.
-- Which cases are material enough that failing at 1/3 makes the whole new-model compatibility assessment `Not apt`, versus only making an individual case `Not apt`; avoid interpreting one noisy subjective grader score as conclusive evidence.
+- Which failures are material enough to classify the **current harness with the chosen model** as requiring adaptation, versus a single test case only; do not treat one noisy subjective grade as decisive.
 - How to verify the grading rubric against blinded known-good/known-bad fixtures and manage uncertainty or disagreement.
 - Whether each quality dimension is relevant to every case; use `not applicable` with explanation, rather than forced numbers.
+
+### Seventh interview: the model is fixed; evaluate and adapt the harness
+
+**Important correction to earlier wording:** The newest available/selected Codex model **will be used regardless of these evaluation results**. EVAL-001 must **never** produce an overall verdict of "model not apt" or use older models as a fallback recommendation. The subject is always the **harness revision and branch running on the selected model**. When a case fails, identify a way to improve the harness, or document an external limitation with evidence if no harness-side remedy is known.
+
+**Confirmed decisions:**
+
+1. **Separate functional and quality outcomes:** even when the generated code passes all functional tests, inadequate architecture/maintainability warrants an explicit quality failure and an actionable harness adaptation recommendation. Preserve both signals instead of implying the model is unusable.
+2. **Level 3 means justified excellence**, not more files, abstraction, tests or other complexity for its own sake.
+3. **Calibrate the grader** against known-good and known-defective reference implementations before trusting subjective evaluations; reuse calibrations if the rubric and evaluation conditions have not changed.
+4. **Diagnose likely origins**: record observed model behavior, harness instructions/control-plane contribution, interactions between them, or unknown cause, **only to decide what harness changes could help**. Do not overstate causal certainty and do not blame the model as a product-selection decision. A distinction such as model-behavior/harness-design/both/indeterminate is a diagnostic aid, not a suitability score.
+5. **Specific recommendations:** cite affected files/components, observed failure, proposed textual or code-level adjustment, expected benefit and regression risks. No automatic patches or modifications; explicit human approval is still required.
+
+**Report terminology (proposal awaiting confirmation):**
+
+| Proposed report outcome | Meaning |
+| --- | --- |
+| **Harness compatible** | Current harness revision on the selected latest model meets critical gates and the calibrated quality target |
+| **Compatible with improvements** | Required gates and targets met, but non-blocking optimizations exist |
+| **Harness adaptation needed** | Confirmed failure of a critical gate, functional check, or required quality target in the current harness/model pairing |
+| **Inconclusive** | Insufficient evidence or unreliable/grader-disputed outcome; investigate or rerun |
+
+A failure must describe the **current harness + selected model + exact test conditions**, not reject the model. Whether a single quality failure sets the overall harness status must be defined at the case-to-suite aggregation level. Recommendations should assess likely efficacy of harness changes without promising that every model behavioral limitation is fixable through prompts.
 
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
@@ -171,7 +194,7 @@ Relevant references:
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
 - **Resource transparency:** record runtime, model turns, review cycles, and observable token/credit usage for comparable runs; highlight costs and inefficiency while preserving quality. Do not build automatic interruption or budget enforcement.
-- **Scoring:** finalize seeded fixtures and anchored 0–3 examples for ten separately visible dimensions, calibrate their overlap and evaluator agreement, and establish how per-case `Not apt` ratings combine into an overall model/harness verdict. Respect branch-specific architecture.
+- **Scoring:** finalize seeded fixtures and anchored 0–3 examples for ten separately visible dimensions, calibrate overlap and evaluator agreement, and establish how per-case *adaptation needed* findings combine into an overall **harness compatibility/adaptation** diagnosis. Respect branch-specific architecture.
 - **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
 - **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
 - **Coverage rollout:** pilot `experimental` with four agreed quick cases; share common fixtures and oracles with modular `master`, add branch-specific tests when needed, and avoid a modularity requirement for `legacy/monolithic`. Include seeded architecture/maintainability defects in the full suite.
