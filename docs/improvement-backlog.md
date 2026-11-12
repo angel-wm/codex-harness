@@ -19,9 +19,9 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Triggers | Run on demand when a new model becomes available or the harness changes; do not assume automatic discovery of new model releases. Treat these as **two distinct experiment types** |
 | Branch coverage | Evaluate `master`, `legacy/monolithic`, and `experimental` separately; **start implementation on `experimental`**, then extend after validation |
 | Comparisons | Compare against both predeclared ideal expectations and historical baselines; compare different models on the same harness revision, or harness revisions on the same current model. Keep history until intentional user deletion |
-| Evaluation targets | Measure harness rule compliance and generated-code quality separately; include correctness, tests, security, **architecture, and maintainability** |
+| Evaluation targets | Measure harness rule compliance and generated-code quality separately; include correctness, tests, security, architecture, and maintainability. Prefer **appropriate modular design**, accounting for branch and project constraints |
 | Critical invariants | Require 100% pass on human approval, state transitions, scope boundaries, safety constraints, and established SDD gates |
-| Reviewer competence | Include deliberately defective implementations and test whether the **actual model reviewer** identifies the seeded defects |
+| Reviewer competence | Include deliberately defective implementations (functional fault, security flaw, and requirements violation) and test whether the **actual model reviewer** identifies seeded defects; architectural/maintainability defect cases remain an option |
 | Existing tests | Retain deterministic unit, integration, regression, and hook tests; add real-model evaluations instead of duplicating those tests |
 | Hook coverage | Test deterministic hook handler behavior separately from whether Codex Desktop actually triggers trusted project hooks |
 | Test levels | Individual/component cases for focused, lower-consumption evaluations and optional full end-to-end SDD cases |
@@ -32,7 +32,7 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Consumption | **Do not design token-limit enforcement or automatic stopping.** Optimize redundant work without sacrificing validity; measure usage/time when available, run quick or full suites on demand, and permit the user to monitor or interrupt manually |
 | Reporting | Store readable Markdown reports and structured machine-readable evidence **within the repository folder but outside Git tracking**, available to Codex locally; preserve reports independently from temporary test repositories |
 | Diagnoses | Report violated criteria, supporting evidence, suspected components, and **specific recommended changes** (without automatically generating or applying patches) |
-| Acceptance | Require 100% on critical controls, functional correctness, security, and mandatory architectural constraints; score qualitative architecture and maintainability separately with a calibrated rubric; no arbitrary quality percentage approved yet |
+| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report **functional pass** and **quality assessment** separately, using a four-level calibrated rubric; the quality blocking threshold is still undecided |
 | Change control | Explicit human approval is required before implementing fixes; track the resulting decision and independent verification |
 
 ### Confirmed design choices (second interview)
@@ -65,6 +65,22 @@ Label noncomparable history honestly when the scenario, model settings, test ora
 #### Latest consumption decision (fourth interview)
 
 **Confirmed:** no automated token cutoff, execution-stop controller, hard budget mode, or advisory budget gate is required. The user can monitor Codex Desktop and manually interrupt a run when desired, but is willing to run expensive or long evaluations when they materially improve the evidence. Avoid waste by making tests targeted, reusing existing deterministic checks and historical comparable results, choosing representative fixtures, and repeating only when uncertainty warrants it. **Do not reduce meaningful coverage, realism, or reviewer-detection quality just to minimize token use.** Record elapsed time and token/credit usage where the platform exposes them; do not invent usage totals. The previous bounded-execution concept is explicitly superseded.
+
+### Fourth interview: quality, reviewer reliability, and efficiency
+
+**Confirmed decisions:**
+
+1. **Architecture preference:** explicitly favor modular architectures where they improve cohesion, separation of responsibilities, and maintainability. Do **not** reward needless file splitting or penalize a branch simply because its documented design is intentionally monolithic; evaluate fidelity to each branch's architectural contract and distinguish comparative design preference from a required invariant.
+2. **Maintainability criteria:** start with readability, duplication, complexity, coupling, ease of modification, and test quality. Other candidates (e.g., testability, error handling, dependency hygiene, portability, observability) may be considered but are **not yet adopted as separately weighted dimensions**.
+3. **Quality rating:** use four anchored levels **0 (deficient), 1 (needs improvement), 2 (good), 3 (excellent)** for applicable qualitative dimensions. Define observable examples per level and calibrate before assigning acceptance thresholds.
+4. **Dual outcomes:** a solution can be *functionally correct* but have *insufficient code quality*. Report both separately so quality can be improved while preserving behavior. Whether a low score independently blocks model adoption is **still open**.
+5. **Evaluation method:** combine deterministic assertions and automated rubric-based assessment by an evaluator that is not shown a preassigned expected score. Calibrate the evaluator using cases with known defects and review disagreements as uncertainty, not indisputable facts.
+6. **Seeded reviewer faults:** explicitly cover a functional defect, a security flaw, and a missed requirement. Whether to add a separate architectural defect and a maintainability defect as seeded reviewer cases is **still open**.
+7. **Repetition:** begin with one live-model execution per case and rerun uncertain cases or when estimating consistency. Full-suite repeat counts should be stated explicitly rather than assumed.
+8. **Challenging instructions:** include ambiguous or adversarial requests that pressure the agent to bypass SDD requirements in the full suite; preserve the human approval gate.
+9. **Efficiency:** keep a sensible balance between delivered correctness/quality and model consumption. Report runtime, model turns, reviewer cycles, and usage/credits where observable, compared to a comparable baseline; avoid unnecessary extra reviews or token waste, but do not compromise critical rules or quality just to obtain a low consumption figure. An efficiency regression is a separate finding, not an automatic reason to remove a correct improvement.
+
+**Unresolved calibration:** Define precise anchors for all six maintainability categories, objective architecture constraints versus subjective preference, whether low noncritical quality blocks model acceptance, whether to add architecture/maintainability defect seeds, and how to report regressions in consumption without an arbitrary hard threshold.
 
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
@@ -112,8 +128,8 @@ Relevant references:
 - **Codex Desktop launch:** both ordinary prompts and a reusable skill are required. Confirm the precise invocation and available trace/usage evidence before implementation; do not invent a slash command.
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
-- **Resource transparency:** record observable runtime and token/credit usage where available; identify high-cost cases and redundant runs. Do not build automatic interruption or budget enforcement.
-- **Scoring:** finalize seeded defects, reproducible result oracles, rubric with explicit examples/weights, permissible evaluator variance, empirical calibration, and quality thresholds; distinguish mandatory violations from softer maintainability judgments.
+- **Resource transparency:** record runtime, model turns, review cycles, and observable token/credit usage for comparable runs; highlight costs and inefficiency while preserving quality. Do not build automatic interruption or budget enforcement.
+- **Scoring:** finalize known-defect fixtures, the six-dimension rubric and sample anchors, evaluator variance/calibration, thresholds for subjective quality, and whether quality below threshold blocks adoption. Respect branch-specific architectural intent while favoring appropriate modularity.
 - **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
 - **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
 - **Coverage rollout:** pilot `experimental` with the four agreed case categories, determine individual acceptance checks and full-suite promotion before rollout to other branches.
