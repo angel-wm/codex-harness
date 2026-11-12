@@ -32,7 +32,7 @@ Evaluate whether a newly selected Codex model respects harness rules and generat
 | Consumption | **Do not design token-limit enforcement or automatic stopping.** Optimize redundant work without sacrificing validity; measure usage/time when available, run quick or full suites on demand, and permit the user to monitor or interrupt manually |
 | Reporting | Store readable Markdown reports and structured machine-readable evidence **within the repository folder but outside Git tracking**, available to Codex locally; preserve reports independently from temporary test repositories |
 | Diagnoses | Report violated criteria, supporting evidence, suspected components, and **specific recommended changes** (without automatically generating or applying patches) |
-| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report functional correctness separately from qualitative quality. Provisional minimum **level 2 (good) in each scored dimension**, subject to calibrated anchors; report functional-pass/quality-insufficient separately |
+| Acceptance | Require 100% on critical controls, correctness, security, and mandatory architectural constraints. Report functionality and code quality separately. Minimum quality target: **2/3 per dimension** after calibration. A confirmed **1/3 quality score provisionally makes that evaluated case `Not apt`**, even if functionality passes; whether one failing case disqualifies the entire model/harness requires an explicit aggregation rule |
 | Change control | Explicit human approval is required before implementing fixes; track the resulting decision and independent verification |
 
 ### Confirmed design choices (second interview)
@@ -97,7 +97,7 @@ Label noncomparable history honestly when the scenario, model settings, test ora
 
 **Dimensions requested and clarification:**
 
-The six previously agreed dimensions were readability, duplication, complexity, coupling, ease of modification, and test quality. The user specifically values **error handling, dependency management and "stability"**, and asks what the remaining part of testability covers. Do not silently equate stability with testability; confirm whether the intended additional quality is runtime robustness, testability, or both. Treat error handling and dependency hygiene as explicit, individually visible checks at minimum; whether they are independently scored dimensions remains **open**. `Test quality` assesses existing tests (assertions, coverage of edge cases, reliable tests); `testability` assesses how easily code can be isolated and tested, including dependency injection, controlled side effects, and ability to test failure paths. These overlap but are not identical. Clarify which receive independent 0–3 scores versus mandatory checks without proliferating redundant weighted dimensions.
+The six original dimensions are readability, duplication, complexity, coupling, ease of modification, and test quality. **Four further dimensions have now been accepted for separate provisional scoring (0–3): error handling, dependency management, runtime stability/robustness, and testability.** Keep their definitions distinct and calibrate for overlap before introducing weighting or an aggregate score. `Test quality` assesses existing tests (assertions, coverage of edge cases, reliable tests); `testability` assesses how easily code can be isolated and tested, including dependency injection, controlled side effects, and ability to test failure paths. These overlap but are not identical. Clarify which receive independent 0–3 scores versus mandatory checks without proliferating redundant weighted dimensions.
 
 `Portability` means working across supported execution environments (e.g., Windows and POSIX), **not** whether Codex can generate code in multiple programming languages. User assigns it low product priority; retain existing cross-platform harness regression checks as compatibility invariants rather than a new subjective quality dimension. Observability remains **medium priority** (diagnosable failures, logs or evidence where useful), not a high-priority new score.
 
@@ -105,7 +105,24 @@ The six previously agreed dimensions were readability, duplication, complexity, 
 
 No external Claude account or paid API is required. The same latest Codex model may act as both implementer and evaluator **in separate sessions or context-isolated roles**, with the evaluator read-only, given only the implementation, approved requirements, and blind rubric, and **not** shown the original implementer's reasoning or seeded-defect answer key. This reduces contextual leakage but **does not eliminate correlated model-family bias**, even with an isolated directory. Use deterministic tests and seeded-defect oracles as the primary ground truth; assess the grader against both known-good and known-bad controls, report disagreements/inconclusive cases, and use human review only when needed. Exact Desktop session and filesystem isolation must be validated, not assumed.
 
-**Open acceptance details:** calibrate rubric with concrete 0/1/2/3 examples for each dimension; decide whether stability and testability are separately scored; map level 1 or an isolated low score to the four summary outcomes; define objective versus interpretative checks; define what makes an evaluator disagreement inconclusive.
+**Open acceptance details:** calibrate rubric with concrete 0/1/2/3 examples for all ten dimensions, distinguish mandatory from subjective checks, specify what one low-scoring case means for the overall model/harness verdict, and determine what makes an evaluator disagreement inconclusive.
+
+### Sixth interview: additional dimensions, grading independence and Linux evidence
+
+**Explicitly accepted:**
+
+- **Additional independently scored dimensions:** error handling, dependency hygiene, runtime stability/robustness, and testability, in addition to the original six. Use provisional 0–3 anchors for each; do not treat testability and *test quality* as identical, or double-penalize the same symptom. Separate mandatory defects from optional improvements. Refine the rubric with examples before relying on numeric scores.
+- **Evaluator model:** use the same latest Codex model available under the user's ChatGPT subscription, in separate, read-only/context-isolated evaluation sessions with independent deterministic oracles. Another provider such as Claude is neither required nor available to this user. Isolation reduces context leakage but does not eliminate model-family bias.
+- **Grade-1 classification:** user prefers **`Not apt` for a confirmed score of 1/3 in any scored quality dimension**, rather than `Apt with improvements`, even when functional tests pass. This is a *provisional per-case classification* pending precise anchors and confirmation of aggregation across cases. Still show **functional tests: passed** and **quality: insufficient** independently, with supporting evidence. No automatic code change, model rejection, or rollout block is implemented or authorized.
+- **Portability:** keep operating-system compatibility as a deterministic control, not a separately scored subjective dimension. The existing `experimental` CI run [38662939167](https://github.com/angel-wm/codex-harness/actions/runs/38662939167) (2026-10-15) passed on both `ubuntu-latest` and `windows-latest`, Python 3.11 and 3.13. This verifies that specific test suite on these runner configurations, **not** every Codex Desktop or runtime integration on Linux.
+- **Observability:** medium-priority check where applicable; not an additional standalone grade.
+
+**Still to define:**
+
+- Observable anchors for 0/1/2/3 and examples of acceptable level-2 vs exceptional level-3 code across ten dimensions.
+- Which cases are material enough that failing at 1/3 makes the whole new-model compatibility assessment `Not apt`, versus only making an individual case `Not apt`; avoid interpreting one noisy subjective grader score as conclusive evidence.
+- How to verify the grading rubric against blinded known-good/known-bad fixtures and manage uncertainty or disagreement.
+- Whether each quality dimension is relevant to every case; use `not applicable` with explanation, rather than forced numbers.
 
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
@@ -154,7 +171,7 @@ Relevant references:
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
 - **Resource transparency:** record runtime, model turns, review cycles, and observable token/credit usage for comparable runs; highlight costs and inefficiency while preserving quality. Do not build automatic interruption or budget enforcement.
-- **Scoring:** finalize seeded fixtures, anchored 0–3 examples (especially 2 versus 3), whether error handling/dependencies/stability/testability receive separate scores or named checks, evaluator calibration and how functional-pass/quality-insufficient maps to overall status. Respect branch-specific architecture.
+- **Scoring:** finalize seeded fixtures and anchored 0–3 examples for ten separately visible dimensions, calibrate their overlap and evaluator agreement, and establish how per-case `Not apt` ratings combine into an overall model/harness verdict. Respect branch-specific architecture.
 - **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
 - **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
 - **Coverage rollout:** pilot `experimental` with four agreed quick cases; share common fixtures and oracles with modular `master`, add branch-specific tests when needed, and avoid a modularity requirement for `legacy/monolithic`. Include seeded architecture/maintainability defects in the full suite.
