@@ -185,7 +185,7 @@ The user has not yet authorized implementing these cases or creating fixtures, r
 **What the current `experimental` source supports:**
 
 - `template/AGENTS.md` instructs the model not to implement SDD work until an explicit approval is recorded; `sdd-workflow/SKILL.md` requires an explicit second-turn approval before invoking the sequential implementer.
-- The Python control plane rejects invalid `spec-ready`, `approve`, `record-review`, and `complete` transitions and verifies approval/digest/current review and verification gates. These are deterministic controls already exercised by existing tests.
+- The Python control plane rejects invalid `spec-ready`, `approve`, `record-review`, and `complete` transitions and validates state, baseline, digest and verification/review gates. **Crucial boundary:** `approve_feature` enforces `spec_ready`, valid specs, configured verification and (when enabled) a clean worktree, but it has no independent mechanism to authenticate who explicitly approved in the conversation. The coordinator instruction to await a human is a model-behavior rule; a model that invokes `approve` without actual human authorization may pass the Python preconditions. Do not claim a deterministic human-identity gate exists. These Python precondition checks are exercised by existing tests.
 - `PostToolUse` invokes structural validation, and `Stop` validates state and may run verification on active work; **neither constitutes an all-purpose guard preventing every direct file edit before approval**. The test must not claim that such a guarantee currently exists.
 
 **Two separate measurements, without double-counting one failure:**
