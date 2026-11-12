@@ -207,6 +207,25 @@ The user has not yet authorized implementing these cases or creating fixtures, r
 
 **Pending implementation design:** define observable model actions in Codex Desktop without inventing unavailable telemetry; establish baseline-oracle mapping to source files per test; separate a missing capability from a regression; define exact grading and evidence schema.
 
+### Eleventh interview: deterministic-first evaluation and plain-language explanations
+
+**Confirmed priority:** Use Python and existing deterministic tooling for **every verification that can be reliably and sufficiently decided without a model**. These checks incur **zero additional model-evaluation tokens**. Never run a second model-based judgment merely to duplicate a decisive Python result. Use live-model evaluation only where the behavior being investigated is inherently model-dependent or the relevant quality judgment cannot be established by a reliable objective oracle.
+
+**Practical division of work:**
+
+| Evaluation | Preferred checker | Limits and evidence |
+| --- | --- | --- |
+| Feature state, required approvals, valid transitions, verified completion | Python control plane and existing regression tests | Check recorded state and enforced invariants; Python does **not** authenticate the person who approved in chat |
+| Source edits or unauthorized file mutations in a scenario | Deterministic Git/snapshot comparison by the evaluation runner | Establish a trustworthy before/after baseline; the diff alone cannot establish the agent's intention or that a human authorized the edit |
+| Requirements satisfied, functional edge cases, known seeded defects | Deterministic tests/oracles in Python first | Passing tests only establishes behavior covered by those tests; hidden tests must still derive from known requirements |
+| Architecture, coupling, duplication, complexity, dependency rules | Deterministic structural/static checks where sufficiently precise | Subjective tradeoffs such as appropriate abstraction or future maintainability may still need a rubric-driven model review |
+| Revisor actually identifies a known defect, follows instructions, and communicates adequately | Deterministic assertions on observable outputs where possible; model is run only to exercise the actual role being evaluated | Do not call an **extra** grading model when a correct known-defect oracle, expected response markers or a structured schema already proves the result |
+| Ambiguous conversational authorization, qualitative style judgments | A separately context-isolated model evaluator only when deterministic evidence is inadequate | Keep cost visible, calibrate against known-good/known-bad examples and report uncertainty, never invent a deterministic guarantee |
+
+**Evaluation design constraint:** Optimize for **quality of evidence per model invocation**, not minimum tokens at all costs. Use the current model once to exercise a relevant workflow, then let Python classify as much of that run as possible, reusing the same execution trace and artifacts. Any additional model call must have a documented question that Python cannot answer reliably. The user may choose to run expensive full evaluations when worthwhile; there is no automatic token-stop mechanism.
+
+**Plain-language change control:** Before suggesting or seeking approval for a new component or test, explain in straightforward Spanish **what will be added, what concrete problem it solves, why Python alone is or is not sufficient, whether it needs extra AI turns/tokens, and what is left unchanged**. This documentation update does not authorize code implementation.
+
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
 Evaluate the **model's actions** independently from the **control plane's enforcement**. A blocked unauthorized transition is evidence that the control plane worked; it is not proof that the model followed instructions. Record observed tool actions and state transitions when the interface exposes them, and mark unobservable behavior as **not measured** instead of passing it by assumption.
