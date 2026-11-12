@@ -136,9 +136,9 @@ No external Claude account or paid API is required. The same latest Codex model 
 4. **Diagnose likely origins**: record observed model behavior, harness instructions/control-plane contribution, interactions between them, or unknown cause, **only to decide what harness changes could help**. Do not overstate causal certainty and do not blame the model as a product-selection decision. A distinction such as model-behavior/harness-design/both/indeterminate is a diagnostic aid, not a suitability score.
 5. **Specific recommendations:** cite affected files/components, observed failure, proposed textual or code-level adjustment, expected benefit and regression risks. No automatic patches or modifications; explicit human approval is still required.
 
-**Report terminology (proposal awaiting confirmation):**
+**Report terminology (confirmed, subject to final aggregation rules):**
 
-| Proposed report outcome | Meaning |
+| Harness report outcome | Meaning |
 | --- | --- |
 | **Harness compatible** | Current harness revision on the selected latest model meets critical gates and the calibrated quality target |
 | **Compatible with improvements** | Required gates and targets met, but non-blocking optimizations exist |
@@ -146,6 +146,17 @@ No external Claude account or paid API is required. The same latest Codex model 
 | **Inconclusive** | Insufficient evidence or unreliable/grader-disputed outcome; investigate or rerun |
 
 A failure must describe the **current harness + selected model + exact test conditions**, not reject the model. Whether a single quality failure sets the overall harness status must be defined at the case-to-suite aggregation level. Recommendations should assess likely efficacy of harness changes without promising that every model behavioral limitation is fixable through prompts.
+
+### Eighth interview: confirmed report labels, adaptation rechecks, known limitations, and read-only diagnosis
+
+All four responses to the latest follow-up were accepted in conversation.
+
+1. **Report labels confirmed:** use **Harness compatible**, **Compatible with improvements**, **Harness adaptation needed**, and **Inconclusive** (Spanish presentation may use `Compatible`, `Compatible con mejoras`, `Requiere adaptación`, `Inconcluso`). These describe the **evaluated harness configuration on the chosen latest model**, never the quality or eligibility of the model itself. The aggregation rule from case-level outcomes to suite-level labels still needs specification.
+2. **Retest after adaptation:** rerun the specific failed cases and a targeted regression subset that protects the already-working harness rules. Reserve the full suite for broad changes, substantial uncertainty, or explicit user request. Record before/after evidence with the same current model.
+3. **Unresolved limitations:** if the investigation finds no supported harness-side remedy, record a **known unresolved limitation**, its observed effect, attempted diagnoses, supporting evidence, and a future investigation path. Continue targeting the newest model; never claim the issue is solved or silently suppress its failing test.
+4. **Evaluator permissions: strictly read-only:** the diagnostic reviewer may read existing instructions, `AGENTS.md`, skills, agent contracts, hooks, configuration, scripts, static code, test expectations, and historical reports. **It must not edit files, change Git state, apply patches, delete workspaces, alter config, or perform other repository mutations.** For strict interpretation of "read only", do not permit it to run arbitrary commands with side effects. A **separate deterministic test runner** may prepare disposable fixtures and perform execution, while a **separate reporting/coordinating component** writes Markdown/JSON to the ignored results directory; the read-only evaluator only returns its analysis as output. Verify that the actual Codex Desktop agent sandbox/permissions enforce this separation rather than merely relying on a prompt.
+
+**Not authorized:** implementation code, automation activation, modifying branch-specific templates, or applying any recommended fixes.
 
 ### Candidate evaluation design (not yet approved as an implementation specification)
 
@@ -190,11 +201,11 @@ Relevant references:
 
 ### Open decisions and risks
 
-- **Codex Desktop launch:** both ordinary prompts and a reusable skill are required. Confirm the precise invocation and available trace/usage evidence before implementation; do not invent a slash command.
+- **Codex Desktop launch:** both ordinary prompts and a reusable skill are required. Confirm exact invocation and ability to enforce a genuinely read-only evaluator while a separate runner and reporter handle execution/output; do not invent a slash command.
 - **Codex CLI:** optional only; assess security/account-session concerns before proposing a separate sign-in. User prefers Desktop and wishes to avoid extra sign-ins.
 - **CI boundary:** GitHub Actions can validate evaluators and uploaded/committed results, but it cannot directly drive a logged-in Desktop session on the user's computer.
 - **Resource transparency:** record runtime, model turns, review cycles, and observable token/credit usage for comparable runs; highlight costs and inefficiency while preserving quality. Do not build automatic interruption or budget enforcement.
-- **Scoring:** finalize seeded fixtures and anchored 0–3 examples for ten separately visible dimensions, calibrate overlap and evaluator agreement, and establish how per-case *adaptation needed* findings combine into an overall **harness compatibility/adaptation** diagnosis. Respect branch-specific architecture.
+- **Scoring:** finalize seeded fixtures and anchored 0–3 examples for ten separately visible dimensions, calibrate overlap and evaluator agreement, and establish how per-case findings map to the four confirmed **harness compatibility/adaptation** labels. The newest model is fixed, never rejected. Respect branch-specific architecture.
 - **Comparisons:** finalize baseline format and exact comparable-experiment rules for (a) model upgrades at fixed harness revision and (b) harness upgrades at fixed newest model; older-model compatibility is not a goal.
 - **Storage and cleanup:** finalize ignored in-repo results folder, sensitive-data redaction, intentional history deletion, cross-branch accessibility of local results, and safe cleanup of passing disposable test repositories.
 - **Coverage rollout:** pilot `experimental` with four agreed quick cases; share common fixtures and oracles with modular `master`, add branch-specific tests when needed, and avoid a modularity requirement for `legacy/monolithic`. Include seeded architecture/maintainability defects in the full suite.
